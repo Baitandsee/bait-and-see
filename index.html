@@ -359,20 +359,6 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     <div id="lureProBox"></div>
   </section>
 
-  <section class="card" aria-labelledby="logH">
-    <div class="card-head">
-      <h2 class="label" id="logH">Catch log</h2>
-      <span class="src" id="logCount"></span>
-    </div>
-    <div id="insightsBox"></div>
-    <ul class="catches" id="catchList"><li class="empty"><b>Loading your catches…</b></li></ul>
-    <div class="log-tools" id="logTools">
-      <button type="button" class="link-btn" id="exportBtn">Back up my log</button>
-      <label class="link-btn" for="importInput">Restore a backup<input class="vh" id="importInput" type="file" accept="application/json,.json"></label>
-      <span class="sub" id="logNote" role="status"></span>
-    </div>
-  </section>
-
   <div class="grid">
     <section class="card" aria-labelledby="wxH">
       <div class="card-head"><h2 class="label" id="wxH">Weather</h2><span class="src" id="wxSrc"></span></div>
@@ -415,6 +401,20 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       <div id="solunarBox"></div>
     </section>
   </div>
+
+  <section class="card" aria-labelledby="logH">
+    <div class="card-head">
+      <h2 class="label" id="logH">Catch log</h2>
+      <span class="src" id="logCount"></span>
+    </div>
+    <div id="insightsBox"></div>
+    <ul class="catches" id="catchList"><li class="empty"><b>Loading your catches…</b></li></ul>
+    <div class="log-tools" id="logTools">
+      <button type="button" class="link-btn" id="exportBtn">Back up my log</button>
+      <label class="link-btn" for="importInput">Restore a backup<input class="vh" id="importInput" type="file" accept="application/json,.json"></label>
+      <span class="sub" id="logNote" role="status"></span>
+    </div>
+  </section>
 
   <section class="card" aria-labelledby="planH">
     <div class="card-head">
