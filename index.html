@@ -317,6 +317,19 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
 .save-spot .fld { flex: 1 1 200px; }
 .rename-in { font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 100%; }
 
+/* Fish ID guide */
+.id-intro { display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
+.id-q { font-family: var(--font-display); font-weight: 700; font-size: 20px; text-transform: uppercase; letter-spacing: .02em; }
+.id-opts { display: grid; gap: 8px; }
+.id-opt { text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 11px 14px; font: inherit; color: var(--ink); cursor: pointer; min-height: 48px; display: grid; gap: 2px; }
+.id-opt:hover { border-color: var(--water); }
+.id-opt b { font-size: 15px; }
+.id-opt span { font-size: 13px; color: var(--muted); }
+.id-result { background: var(--water-soft); border-radius: 12px; padding: 12px 14px; display: grid; gap: 6px; }
+.id-result h3 { margin: 0; font-family: var(--font-display); font-size: 26px; text-transform: uppercase; line-height: 1; }
+.id-result ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 3px; }
+.id-nav { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+
 .foot { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
 .foot a { color: var(--water); }
 .skeleton { color: var(--muted); }
@@ -477,6 +490,10 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   </div>
 
   <div class="view" id="view-log" hidden>
+  <section class="card" aria-labelledby="idH">
+    <div class="card-head"><h2 class="label" id="idH">Which fish is this?</h2><span class="src">Free</span></div>
+    <div id="idBox"></div>
+  </section>
   <section class="card" aria-labelledby="logH">
     <div class="card-head">
       <h2 class="label" id="logH">Catch log</h2>
@@ -516,7 +533,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
 
   <footer class="foot">
     <div>Data: National Weather Service, USGS Water Data, NOAA Tides &amp; Currents, OpenStreetMap. Sun and moon times are calculated on your phone.</div>
-    <div>Check <a href="https://myfwc.com/fishing/" target="_blank" rel="noopener">FWC fishing regulations</a> before you go.</div>
+    <div id="regsLine">Check <a id="regsLink" href="https://myfwc.com/fishing/" target="_blank" rel="noopener">Florida fishing regulations (FWC)</a> before you go.</div>
   </footer>
 </div>
 
@@ -691,7 +708,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       }).catch(function () { return null; });
       return Promise.all([hourlyP, obsP]).then(function (res) {
         var hourly = res[0], obs = res[1];
-        var w = { source: "NWS", city: city, station: obs && obs.name };
+        var w = { source: "NWS", city: city, state: rel ? rel.state : null, station: obs && obs.name };
         var list = obs ? obs.list.map(function (f) { return f.properties; }) : [];
         var latest = list.find(function (o) { return o.temperature && o.temperature.value != null; });
         if (latest) {
@@ -1112,6 +1129,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       ? '<dl class="kv"><dt>Retrieve</dt><dd>' + esc(L.retrieve) + "</dd><dt>Backup</dt><dd>" + esc(L.backup) + "</dd></dl>" + personalLine()
       : lockedRow("Retrieve tips and backup lure") + (learnedPick() ? lockedRow("Your log has a lure pick for conditions like today") : "");
 
+    renderRegs();
     $("timelineBox").innerHTML = timelineHtml();
     renderOutlook();
     noteSpotScore(b.score);
@@ -2015,6 +2033,157 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   function tick() { $("clock").textContent = "· " + new Date().toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); }
   tick(); setInterval(tick, 30000);
   setInterval(function () { if (state.weather) render(); }, 5 * 60000);
+
+  // ---------- state fishing regulations ----------
+  var REGS = {
+    AL: ["Alabama", "Outdoor Alabama", "https://www.outdooralabama.com/fishing"],
+    AK: ["Alaska", "ADF&G", "https://www.adfg.alaska.gov/"],
+    AZ: ["Arizona", "AZGFD", "https://www.azgfd.com/"],
+    AR: ["Arkansas", "AGFC", "https://www.agfc.com/"],
+    CA: ["California", "CDFW", "https://wildlife.ca.gov/"],
+    CO: ["Colorado", "CPW", "https://cpw.state.co.us/"],
+    CT: ["Connecticut", "CT DEEP", "https://portal.ct.gov/deep/fishing"],
+    DE: ["Delaware", "DNREC", "https://dnrec.delaware.gov/fish-wildlife/fishing/"],
+    DC: ["D.C.", "DOEE", "https://doee.dc.gov/"],
+    FL: ["Florida", "FWC", "https://myfwc.com/fishing/"],
+    GA: ["Georgia", "Georgia DNR", "https://georgiawildlife.com/fishing"],
+    HI: ["Hawaii", "DLNR", "https://dlnr.hawaii.gov/dar/fishing/"],
+    ID: ["Idaho", "IDFG", "https://idfg.idaho.gov/"],
+    IL: ["Illinois", "Illinois DNR", "https://dnr.illinois.gov/"],
+    IN: ["Indiana", "Indiana DNR", "https://www.in.gov/dnr/fish-and-wildlife/fishing/"],
+    IA: ["Iowa", "Iowa DNR", "https://www.iowadnr.gov/"],
+    KS: ["Kansas", "KDWP", "https://ksoutdoors.com/"],
+    KY: ["Kentucky", "KDFWR", "https://fw.ky.gov/"],
+    LA: ["Louisiana", "LDWF", "https://www.wlf.louisiana.gov/"],
+    ME: ["Maine", "MDIFW", "https://www.maine.gov/ifw/fishing-boating/fishing/index.html"],
+    MD: ["Maryland", "Maryland DNR", "https://dnr.maryland.gov/fisheries/"],
+    MA: ["Massachusetts", "MassWildlife", "https://www.mass.gov/dfw"],
+    MI: ["Michigan", "Michigan DNR", "https://www.michigan.gov/dnr/things-to-do/fishing"],
+    MN: ["Minnesota", "Minnesota DNR", "https://www.dnr.state.mn.us/fishing/index.html"],
+    MS: ["Mississippi", "MDWFP", "https://www.mdwfp.com/fishing-boating/"],
+    MO: ["Missouri", "MDC", "https://mdc.mo.gov/"],
+    MT: ["Montana", "FWP", "https://fwp.mt.gov/"],
+    NE: ["Nebraska", "Nebraska Game and Parks", "https://outdoornebraska.gov/"],
+    NV: ["Nevada", "NDOW", "https://www.ndow.org/"],
+    NH: ["New Hampshire", "NH Fish and Game", "https://www.wildlife.nh.gov/"],
+    NJ: ["New Jersey", "NJ Fish & Wildlife", "https://dep.nj.gov/njfw/fishing/"],
+    NM: ["New Mexico", "NMDGF", "https://www.wildlife.state.nm.us/"],
+    NY: ["New York", "NYSDEC", "https://dec.ny.gov/"],
+    NC: ["North Carolina", "NCWRC", "https://www.ncwildlife.gov/fishing"],
+    ND: ["North Dakota", "NDGF", "https://gf.nd.gov/"],
+    OH: ["Ohio", "Ohio DNR", "https://ohiodnr.gov/"],
+    OK: ["Oklahoma", "ODWC", "https://www.wildlifedepartment.com/"],
+    OR: ["Oregon", "ODFW", "https://myodfw.com/"],
+    PA: ["Pennsylvania", "PFBC", "https://www.fishandboat.com/"],
+    RI: ["Rhode Island", "RI DEM", "https://dem.ri.gov/"],
+    SC: ["South Carolina", "SCDNR", "https://www.dnr.sc.gov/fishing.html"],
+    SD: ["South Dakota", "SD GFP", "https://gfp.sd.gov/"],
+    TN: ["Tennessee", "TWRA", "https://www.tn.gov/twra/fishing.html"],
+    TX: ["Texas", "TPWD", "https://tpwd.texas.gov/fishboat/fish/"],
+    UT: ["Utah", "UDWR", "https://wildlife.utah.gov/"],
+    VT: ["Vermont", "Vermont Fish & Wildlife", "https://vtfishandwildlife.com/"],
+    VA: ["Virginia", "DWR", "https://dwr.virginia.gov/"],
+    WA: ["Washington", "WDFW", "https://wdfw.wa.gov/"],
+    WV: ["West Virginia", "WVDNR", "https://wvdnr.gov/"],
+    WI: ["Wisconsin", "Wisconsin DNR", "https://dnr.wisconsin.gov/"],
+    WY: ["Wyoming", "WGFD", "https://wgfd.wyo.gov/"]
+  };
+  function currentRegs() {
+    var st = state.weather && !state.weather.sample && state.weather.state;
+    return REGS[st] || (state.weather && state.weather.sample ? REGS.FL : null);
+  }
+  function renderRegs() {
+    var r = currentRegs(), line = $("regsLine");
+    if (r) line.innerHTML = 'Check <a id="regsLink" href="' + r[2] + '" target="_blank" rel="noopener">' + esc(r[0] + " fishing regulations (" + r[1] + ")") + "</a> before you go.";
+    else line.textContent = "Check your state's fishing regulations before you go.";
+  }
+
+  // ---------- fish ID guide ----------
+  var BASS_Q = { q: "Look at the jaw and sides", opts: [
+    { t: "Jaw reaches past the back of the eye", s: "Dark, blotchy stripe down the side", fish: "Largemouth bass" },
+    { t: "Jaw stops around the middle of the eye", s: "Rows of small dark spots on the lower sides", fish: "Spotted bass" },
+    { t: "Dark vertical bars, like tiger stripes", s: "Red eye, bronze-green body", fish: "Shoal bass" },
+    { t: "Silver with long dark stripes", s: "7 or 8 unbroken stripes from head to tail", fish: "Striped bass" } ] };
+  var ID_TREE = { q: "Where did you catch it?", opts: [
+    { t: "Freshwater", s: "Rivers, lakes, ponds", next: { q: "What does it look like?", opts: [
+      { t: "Bass shape", s: "Long body, big mouth", next: BASS_Q },
+      { t: "Small and round", s: "About the size of your hand", next: { q: "Look at the mouth and markings", opts: [
+        { t: "Small mouth, dark flap behind the gill", s: "Faint vertical bars on the sides", fish: "Bluegill / bream" },
+        { t: "Big, thin-lipped mouth", s: "Silvery with black speckles or blotches", fish: "Crappie" } ] } },
+      { t: "Whiskers and no scales", s: "Smooth skin, barbels around the mouth", fish: "Catfish" } ] } },
+    { t: "Saltwater or brackish", s: "Bays, flats, beaches, passes", next: { q: "What does it look like?", opts: [
+      { t: "Chunky drum shape", s: "Heavy body, mouth points down", next: { q: "Color and marks", opts: [
+        { t: "Copper or bronze, black spot near the tail", s: "Sometimes several spots", fish: "Redfish" },
+        { t: "Gray or black, whiskers on the chin", s: "High arched back, young fish have dark bars", fish: "Black drum" } ] } },
+      { t: "Long and sleek", s: "Built for speed", next: { q: "Look at the side and mouth", opts: [
+        { t: "Black spots on the back and tail", s: "Silvery-gray, two big fangs up front", fish: "Speckled trout" },
+        { t: "Bold black line from gill to tail", s: "Sloped forehead, lower jaw sticks out", fish: "Snook" },
+        { t: "Gold or yellow spots, no bars", s: "Very sharp teeth, forked tail", fish: "Spanish mackerel" },
+        { t: "Plain gray, line on the side dips sharply", s: "Big and long, very sharp teeth", fish: "King mackerel" },
+        { t: "Wavy dark lines on the back", s: "A few black dots under the side fin", fish: "Bonita (little tunny)" } ] } },
+      { t: "Flat, both eyes on one side", s: "Lies on the bottom", fish: "Flounder" },
+      { t: "Tall and deep-bodied", s: "Shaped like a plate on edge", next: { q: "Color and marks", opts: [
+        { t: "5 or 6 bold black bars", s: "Teeth that look almost human", fish: "Sheepshead" },
+        { t: "Silver with a yellow throat and belly", s: "Blunt head, deeply forked tail", fish: "Pompano" } ] } },
+      { t: "Huge and silver with giant scales", s: "Mouth points up, long thread on the back fin", fish: "Tarpon" } ] } } ] };
+  var ID_INFO = {
+    "Largemouth bass": ["Upper jaw extends past the back of the eye when the mouth is closed", "Dark, broken stripe along the side", "Front and back of the top fin are almost split apart"],
+    "Spotted bass": ["Jaw ends around the middle of the eye", "Rows of small dark spots below the side stripe", "Rough tooth patch on the tongue you can feel with a finger"],
+    "Shoal bass": ["Dark vertical bars along the sides, like tiger stripes", "Red eye and no tooth patch on the tongue", "Found in rivers like the Chipola and Apalachicola systems"],
+    "Striped bass": ["Silver body with 7 or 8 unbroken dark stripes", "Two clearly separate top fins", "Gets much bigger than other bass"],
+    "Bluegill / bream": ["Small mouth", "Dark flap at the back of the gill cover", "Faint dark bars on the sides"],
+    "Crappie": ["Large, thin, papery mouth", "Silvery body with black speckles or blotches", "Big, rounded top and bottom fins"],
+    "Catfish": ["Whiskers (barbels) around the mouth", "Smooth skin, no scales", "Sharp spines on the top and side fins, handle with care"],
+    "Redfish": ["Copper to bronze color", "One or more black spots near the tail", "Mouth points down for feeding on the bottom"],
+    "Black drum": ["Small whiskers under the chin", "High, arched back", "Young fish have dark vertical bars that fade with age"],
+    "Speckled trout": ["Black spots on the back, top fin and tail", "One or two large fangs at the front of the upper jaw", "Soft mouth, so play them gently"],
+    "Snook": ["Bold black line running from the gill to the tail", "Sloped forehead and jutting lower jaw", "Sharp gill cover edge, so keep fingers clear"],
+    "Spanish mackerel": ["Gold or yellow spots on the sides, no bars", "Line on the side slopes gently, no sharp dip", "Razor-sharp teeth"],
+    "King mackerel": ["Plain gray sides on adults (young fish can have spots)", "Line on the side drops sharply below the second top fin", "Razor-sharp teeth"],
+    "Bonita (little tunny)": ["Wavy, worm-like dark lines on the back", "A few black dots below the side fin", "Torpedo body with no scales on most of it"],
+    "Flounder": ["Flat body with both eyes on one side", "Brown, spotted top side and white underside", "Lies on the bottom and ambushes bait"],
+    "Sheepshead": ["5 or 6 bold black vertical bars", "Teeth that look almost human, for crushing barnacles", "Sharp spines on the top fin"],
+    "Pompano": ["Silver body with a yellow throat and belly", "Blunt head and small mouth", "Deeply forked tail"],
+    "Tarpon": ["Very large silver scales", "Mouth points up with a big lower jaw", "Long thread trailing off the last ray of the top fin"]
+  };
+  var idPath = [], idFish = null, idOpen = false;
+  function idNode() { var n = ID_TREE; idPath.forEach(function (i) { n = n.opts[i].next; }); return n; }
+  function renderId() {
+    var box = $("idBox");
+    if (!idOpen) {
+      box.innerHTML = '<div class="id-intro"><button type="button" class="btn primary" data-id-act="start">Identify a fish</button><span class="sub">Answer 2 or 3 quick questions about what you caught.</span></div>';
+      return;
+    }
+    if (idFish) {
+      var r = currentRegs(), regs = r ? '<a href="' + r[2] + '" target="_blank" rel="noopener">' + esc(r[1]) + "</a>" : "your state's wildlife agency";
+      box.innerHTML = '<div class="id-result"><div class="sub">Most likely</div><h3>' + esc(idFish) + "</h3><ul>" +
+        (ID_INFO[idFish] || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+        '<div class="sub">Some fish look alike. Check with ' + regs + " before you keep one.</div></div>" +
+        '<div class="id-nav" style="margin-top:10px"><button type="button" class="btn primary" data-id-act="log">Log this fish</button><button type="button" class="link-btn" data-id-act="back">Back</button><button type="button" class="link-btn" data-id-act="reset">Start over</button></div>';
+      return;
+    }
+    var n = idNode();
+    box.innerHTML = '<div class="id-q">' + esc(n.q) + '</div><div class="id-opts" style="margin-top:8px">' + n.opts.map(function (o, i) {
+      return '<button type="button" class="id-opt" data-id-opt="' + i + '"><b>' + esc(o.t) + "</b>" + (o.s ? "<span>" + esc(o.s) + "</span>" : "") + "</button>";
+    }).join("") + '</div><div class="id-nav" style="margin-top:8px">' + (idPath.length ? '<button type="button" class="link-btn" data-id-act="back">Back</button>' : "") +
+      '<button type="button" class="link-btn" data-id-act="reset">Close</button></div>';
+  }
+  $("idBox").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.idOpt != null) {
+      var o = idNode().opts[+b.dataset.idOpt];
+      if (o.fish) idFish = o.fish; else idPath.push(+b.dataset.idOpt);
+    } else {
+      var act = b.dataset.idAct;
+      if (act === "start") { idOpen = true; idPath = []; idFish = null; }
+      else if (act === "back") { if (idFish) idFish = null; else idPath.pop(); }
+      else if (act === "reset") { idOpen = false; idPath = []; idFish = null; }
+      else if (act === "log") { var f = idFish; openCatch(); $("fSpecies").value = f; updateSizeHint(); return; }
+    }
+    renderId();
+    var q = $("idBox").querySelector("button"); if (q && act !== "reset") q.focus({ preventScroll: true });
+  });
+  renderId();
 
   // ---------- tabs ----------
   function showTab(name, noScroll) {
