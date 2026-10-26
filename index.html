@@ -373,7 +373,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     <div class="controls">
       <div class="seg" role="group" aria-label="Target fish" id="speciesSeg">
         <button type="button" data-v="bass" aria-pressed="true">Bass</button>
-        <button type="button" data-v="inshore" aria-pressed="false">Redfish &amp; trout</button>
+        <button type="button" data-v="inshore" aria-pressed="false">Inshore salt</button>
       </div>
       <div class="seg" role="group" aria-label="Water clarity" id="claritySeg">
         <button type="button" data-v="clear" aria-pressed="false">Clear</button>
@@ -552,7 +552,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
         <select id="fSpecies">
           <option>Largemouth bass</option><option>Spotted bass</option><option>Shoal bass</option><option>Striped bass</option>
           <option>Bluegill / bream</option><option>Crappie</option><option>Catfish</option>
-          <option>Redfish</option><option>Speckled trout</option><option>Flounder</option><option>Sheepshead</option><option>Other</option>
+          <option>Redfish</option><option>Speckled trout</option><option>Snook</option><option>Flounder</option><option>Sheepshead</option><option>Black drum</option><option>Pompano</option><option>Spanish mackerel</option><option>King mackerel</option><option>Bonita (little tunny)</option><option>Tarpon</option><option>Other</option>
         </select>
       </label>
       <label class="fld" for="fTime">When
@@ -1092,7 +1092,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     $("dialArc").setAttribute("stroke-dasharray", (b.score / 10 * 264).toFixed(1) + " 264");
     $("verdict").textContent = b.label;
     var best = a && a.windows.filter(function (x) { return x.kind === "Major" && x.end > new Date(); })[0];
-    $("verdictSub").textContent = state.species === "bass" ? "Largemouth bass" : "Redfish and speckled trout";
+    $("verdictSub").textContent = state.species === "bass" ? "Largemouth bass" : "Inshore saltwater";
     $("biteTime").textContent = "As of " + fmtTime(new Date());
     $("factorsBox").innerHTML = state.pro
       ? '<ul class="factors">' + b.factors.map(function (x) { return '<li class="' + (x.v > 0 ? "up" : x.v < 0 ? "down" : "") + '">' + esc(x.text) + "</li>"; }).join("") + "</ul>" +
@@ -1469,7 +1469,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     cs.forEach(function (c) { var k = f(c); if (!k) return; var key = String(k).toLowerCase(); (m[key] = m[key] || { label: k, n: 0 }).n++; });
     return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.n - a.n; });
   }
-  var INSHORE = ["Redfish", "Speckled trout", "Flounder", "Sheepshead"];
+  var INSHORE = ["Redfish", "Speckled trout", "Snook", "Flounder", "Sheepshead", "Black drum", "Pompano", "Spanish mackerel", "King mackerel", "Bonita (little tunny)", "Tarpon"];
   function learnedPick() {
     var cs = state.catches || []; if (cs.length < 3) return null;
     var bassMode = state.species === "bass", wt = waterTemp().f, w = state.weather || {}, tr = trendLabel(w.trendIn), sk = w.skyKind, cl = state.clarity;
@@ -1570,6 +1570,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   // Length-weight formulas. Freshwater: standard weight equations (log10 lb = a + b*log10 in [+ q*log10(in)^2]),
   // from the FSA WSlit table (Henson 1991; Sammons et al. 2025; Bonvechio et al. 2019; Brown & Murphy 1991;
   // Hillman 1982; Neumann & Murphy 1991; Brown et al. 1995). Saltwater: W(g) = a*TL(mm)^b, Gulf of Mexico (Jenkins 2004).
+  // Other saltwater species: W(g) = a*TL(cm)^b, FishBase Bayesian length-weight estimates.
   var LW = {
     "Largemouth bass": { a: -3.587, b: 3.273 },
     "Spotted bass": { a: -3.3641, b: 3.064 },
@@ -1579,11 +1580,21 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     "Crappie": { a: -3.576, b: 3.345 },
     "Catfish": { a: -3.829, b: 3.294 },
     "Redfish": { pa: 0.000005297, pb: 3.110 },
-    "Speckled trout": { pa: 0.000009506, pb: 3.0 }
+    "Speckled trout": { pa: 0.000009506, pb: 3.0 },
+    "Snook": { ca: 0.00724, cb: 3.03 },
+    "Flounder": { ca: 0.00575, cb: 3.19 },
+    "Sheepshead": { ca: 0.02089, cb: 2.98 },
+    "Black drum": { ca: 0.00912, cb: 3.07 },
+    "Pompano": { ca: 0.01585, cb: 2.82 },
+    "Spanish mackerel": { ca: 0.00776, cb: 3.03 },
+    "King mackerel": { ca: 0.00912, cb: 3.02 },
+    "Bonita (little tunny)": { ca: 0.01000, cb: 3.06 },
+    "Tarpon": { ca: 0.01023, cb: 3.02 }
   };
   function lwWeight(sp, L) {
     var e = LW[sp]; if (!e || !(L > 0)) return null;
     if (e.pa) return e.pa * Math.pow(L * 25.4, e.pb) / 453.592;
+    if (e.ca) return e.ca * Math.pow(L * 2.54, e.cb) / 453.592;
     var x = Math.log10(L); return Math.pow(10, e.a + e.b * x + (e.q || 0) * x * x);
   }
   function lwLength(sp, W) {
