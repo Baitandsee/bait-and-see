@@ -269,6 +269,8 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
 .photo-prev { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; }
 .cond-box { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--muted); }
 .cond-box b { color: var(--ink); }
+.size-hint { font-size: 13.5px; color: var(--ink); background: var(--water-soft); border-radius: 8px; padding: 8px 10px; display: flex; gap: 4px 10px; flex-wrap: wrap; align-items: center; }
+.size-hint .link-btn { color: var(--water); font-weight: 700; }
 .err { color: var(--bad); font-size: 13.5px; }
 .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
@@ -484,6 +486,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
         <input id="fWt" type="number" inputmode="decimal" step="0.01" min="0" max="150" placeholder="2.4">
       </label>
     </div>
+    <div class="size-hint" id="sizeHint" role="status" hidden><span id="sizeHintText"></span><button type="button" class="link-btn" id="sizeUse">Use estimate</button></div>
     <div class="two stack">
       <label class="fld" for="fLure">Lure
         <input id="fLure" type="text" list="lureList" autocomplete="off">
@@ -1214,7 +1217,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     var inWin = cs.filter(function (c) { return c.cond && /^(Major|Minor) window$/.test(c.cond.solunar || ""); }).length;
     var biggest = cs.filter(function (c) { return c.weightLb; }).sort(function (a, b) { return b.weightLb - a.weightLb; })[0];
     var facts = [inWin + " of " + cs.length + " caught during a feeding window"];
-    if (biggest) facts.push("Biggest: " + biggest.weightLb + " lb " + biggest.species.toLowerCase());
+    if (biggest) facts.push("Biggest: " + (biggest.weightEst ? "~" : "") + biggest.weightLb + " lb " + biggest.species.toLowerCase());
     return '<div style="display:grid;gap:12px">' + bars("Top lures", lures) + bars("Pressure when they bit", trends) +
       '<div class="sub">' + esc(facts.join(" · ")) + "</div></div>";
   }
@@ -1234,7 +1237,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
         var ph;
         if (c.photo) { var u = URL.createObjectURL(c.photo); photoUrls.push(u); ph = '<img class="catch-ph" src="' + u + '" alt="Photo of ' + esc(c.species) + '">'; }
         else ph = '<div class="catch-ph" aria-hidden="true">' + FISH + "</div>";
-        var size = [c.lengthIn ? c.lengthIn + " in" : "", c.weightLb ? c.weightLb + " lb" : ""].filter(Boolean).join(", ");
+        var size = [c.lengthIn ? (c.lengthEst ? "~" : "") + c.lengthIn + " in" : "", c.weightLb ? (c.weightEst ? "~" : "") + c.weightLb + " lb" : ""].filter(Boolean).join(", ");
         var k = c.cond || {};
         var chips = [k.trend ? "Pressure " + k.trend.toLowerCase() : "", /window$/.test(k.solunar || "") && k.solunar !== "Outside feeding windows" ? k.solunar : "",
           k.waterF != null ? "Water " + k.waterF + "°F" : "", k.tide ? k.tide + " tide" : "", k.sky || "", k.moon || ""].filter(Boolean);
@@ -1276,6 +1279,52 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   function num(v) { var n = parseFloat(v); return isNaN(n) || n <= 0 ? null : Math.round(n * 100) / 100; }
   function showErr(msg) { var e = $("formErr"); e.textContent = msg; e.hidden = !msg; }
 
+  // Length-weight formulas. Freshwater: standard weight equations (log10 lb = a + b*log10 in [+ q*log10(in)^2]),
+  // from the FSA WSlit table (Henson 1991; Sammons et al. 2025; Bonvechio et al. 2019; Brown & Murphy 1991;
+  // Hillman 1982; Neumann & Murphy 1991; Brown et al. 1995). Saltwater: W(g) = a*TL(mm)^b, Gulf of Mexico (Jenkins 2004).
+  var LW = {
+    "Largemouth bass": { a: -3.587, b: 3.273 },
+    "Spotted bass": { a: -3.3641, b: 3.064 },
+    "Shoal bass": { a: -3.169, b: 2.391, q: 0.415 },
+    "Striped bass": { a: -3.358, b: 3.007 },
+    "Bluegill / bream": { a: -3.371, b: 3.316 },
+    "Crappie": { a: -3.576, b: 3.345 },
+    "Catfish": { a: -3.829, b: 3.294 },
+    "Redfish": { pa: 0.000005297, pb: 3.110 },
+    "Speckled trout": { pa: 0.000009506, pb: 3.0 }
+  };
+  function lwWeight(sp, L) {
+    var e = LW[sp]; if (!e || !(L > 0)) return null;
+    if (e.pa) return e.pa * Math.pow(L * 25.4, e.pb) / 453.592;
+    var x = Math.log10(L); return Math.pow(10, e.a + e.b * x + (e.q || 0) * x * x);
+  }
+  function lwLength(sp, W) {
+    if (!LW[sp] || !(W > 0)) return null;
+    var lo = 1, hi = 80;
+    if (lwWeight(sp, hi) < W) return null;
+    for (var i = 0; i < 50; i++) { var mid = (lo + hi) / 2; if (lwWeight(sp, mid) < W) lo = mid; else hi = mid; }
+    return (lo + hi) / 2;
+  }
+  var estFlags = { len: false, wt: false }, sizeSuggest = null;
+  function updateSizeHint() {
+    var sp = $("fSpecies").value, L = num($("fLen").value), W = num($("fWt").value), box = $("sizeHint"), btn = $("sizeUse");
+    sizeSuggest = null;
+    if ((L && W) || (!L && !W)) { box.hidden = true; return; }
+    var name = sp.toLowerCase();
+    if (!LW[sp]) { $("sizeHintText").textContent = "No size estimate for " + name + " yet."; btn.hidden = true; box.hidden = false; return; }
+    if (L) {
+      var w = lwWeight(sp, L); if (!w) { box.hidden = true; return; }
+      w = w >= 1 ? Math.round(w * 10) / 10 : Math.round(w * 100) / 100;
+      sizeSuggest = { field: "fWt", value: w, flag: "wt" };
+      $("sizeHintText").textContent = "At " + L + " in, a " + name + " usually weighs about " + w + " lb.";
+    } else {
+      var l = lwLength(sp, W); if (!l) { box.hidden = true; return; }
+      l = Math.round(l * 4) / 4;
+      sizeSuggest = { field: "fLen", value: l, flag: "len" };
+      $("sizeHintText").textContent = "At " + W + " lb, a " + name + " is usually about " + l + " in long.";
+    }
+    btn.hidden = false; box.hidden = false;
+  }
   var pendingPhoto = null, pendingCond = null, editing = null, pendingCondBase = null, pendingLoc = null, photoNote = "";
   function readExif(file) {
     return file.slice(0, 262144).arrayBuffer().then(function (buf) {
@@ -1524,6 +1573,8 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     setPhotoPreview(pendingPhoto);
     pendingCondBase = pendingCond; pendingLoc = null; photoNote = "";
     refreshCond();
+    estFlags = { len: !!(editing && editing.lengthEst), wt: !!(editing && editing.weightEst) };
+    updateSizeHint();
     var d = $("catchDialog");
     if (d.showModal) d.showModal(); else d.setAttribute("open", "");
   }
@@ -1537,6 +1588,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     var c = {
       id: was ? was.id : Date.now().toString(36) + Math.random().toString(36).slice(2, 7), time: t.getTime(),
       species: $("fSpecies").value, lengthIn: num(len), weightLb: num(wt),
+      lengthEst: !!(estFlags.len && num(len)), weightEst: !!(estFlags.wt && num(wt)),
       lure: $("fLure").value.trim(), color: $("fColor").value.trim(), notes: $("fNotes").value.trim(),
       lat: pendingLoc ? pendingLoc.lat : was ? was.lat : spot.lat, lon: pendingLoc ? pendingLoc.lon : was ? was.lon : spot.lon,
       spotName: pendingLoc ? locName(pendingLoc) : was ? was.spotName : (spot.name || null),
@@ -1598,6 +1650,13 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   $("cancelCatch").addEventListener("click", closeCatch);
   $("removePhoto").addEventListener("click", function () { pendingPhoto = null; setPhotoPreview(null); });
   $("fTime").addEventListener("change", refreshCond);
+  $("fLen").addEventListener("input", function () { estFlags.len = false; updateSizeHint(); });
+  $("fWt").addEventListener("input", function () { estFlags.wt = false; updateSizeHint(); });
+  $("fSpecies").addEventListener("change", updateSizeHint);
+  $("sizeUse").addEventListener("click", function () {
+    if (!sizeSuggest) return;
+    $(sizeSuggest.field).value = sizeSuggest.value; estFlags[sizeSuggest.flag] = true; updateSizeHint();
+  });
   $("catchForm").addEventListener("submit", saveCatch);
   $("exportBtn").addEventListener("click", exportLog);
   $("importInput").addEventListener("change", importLog);
