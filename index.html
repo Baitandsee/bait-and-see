@@ -1353,21 +1353,146 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     photoNote = bits.length ? "Filled in the " + bits.join(" and ") + " from your photo." : "This photo doesn't have a time or location saved in it.";
     refreshCond();
   }
+  var histReq = 0, histMsg = "";
+  function estWater(lat, t, air) {
+    var base = MONTHLY_WT[t.getMonth()] - (lat - 30.5) * 1.5;
+    return Math.round(air != null ? base * 0.7 + air * 0.3 : base);
+  }
+  function nearestReading(list, target, test) {
+    var best = null;
+    list.forEach(function (x) { if (!test(x)) return; var d = Math.abs(x.t - target); if (!best || d < best.d) best = { d: d, x: x }; });
+    return best && best.d <= 90 * 60e3 ? best.x : null;
+  }
+  function fetchHistory(loc, t) {
+    var H = { Accept: "application/geo+json" }, out = { found: [] };
+    var wx = fetchJSON("https://api.weather.gov/points/" + loc.lat.toFixed(4) + "," + loc.lon.toFixed(4), H).then(function (p) {
+      return fetchJSON(p.properties.observationStations, H);
+    }).then(function (st) {
+      var f = st.features && st.features[0]; if (!f) throw new Error("no station");
+      var q = "?start=" + encodeURIComponent(new Date(t - 4.5 * 3600e3).toISOString().slice(0, 19) + "Z") +
+        "&end=" + encodeURIComponent(new Date(t + 3600e3).toISOString().slice(0, 19) + "Z");
+      return fetchJSON("https://api.weather.gov/stations/" + f.properties.stationIdentifier + "/observations" + q, H);
+    }).then(function (o) {
+      var list = (o.features || []).map(function (f) {
+        var x = f.properties || {}, pa = (x.barometricPressure && x.barometricPressure.value) || (x.seaLevelPressure && x.seaLevelPressure.value);
+        return { t: new Date(x.timestamp).getTime(), x: x, p: pa ? pa * 0.0002953 : null };
+      }).filter(function (y) { return !isNaN(y.t); });
+      var a = nearestReading(list, t, function (y) { return y.x.temperature && y.x.temperature.value != null; });
+      if (a) {
+        out.airF = Math.round(cToF(a.x.temperature.value)); out.sky = a.x.textDescription || null;
+        if (a.x.windSpeed && a.x.windSpeed.value != null) out.windMph = Math.round(a.x.windSpeed.value * 0.621371);
+        if (a.x.windDirection && a.x.windDirection.value != null) out.windDir = compass(a.x.windDirection.value);
+        out.found.push("weather");
+      }
+      var hasP = function (y) { return y.p != null; };
+      var p0 = nearestReading(list, t, hasP), p3 = nearestReading(list, t - 3 * 3600e3, hasP);
+      if (p0) {
+        out.pressureIn = Math.round(p0.p * 100) / 100;
+        if (p3 && p3 !== p0) out.trend = trendLabel(p0.p - p3.p);
+        out.found.push("pressure");
+      }
+    }).catch(function () {});
+
+    var rv = state.river, river = Promise.resolve();
+    if (rv && rv.id && !rv.sample && rv.lat != null && miles(loc.lat, loc.lon, rv.lat, rv.lon) < 20) {
+      var s0 = new Date(t - 2 * 3600e3).toISOString().slice(0, 19) + "Z", s1 = new Date(t + 2 * 3600e3).toISOString().slice(0, 19) + "Z";
+      var pick = function (rows) {
+        ["00060", "00065", "00010"].forEach(function (code) {
+          var hit = nearestReading(rows.filter(function (y) { return y.code === code; }), t, function () { return true; });
+          if (!hit) return;
+          if (code === "00060") out.flowCfs = Math.round(hit.v);
+          if (code === "00065") out.heightFt = hit.v;
+          if (code === "00010") { out.waterF = Math.round(cToF(hit.v)); out.waterSrc = "gauge"; }
+        });
+        if (out.flowCfs != null || out.heightFt != null) out.found.push("river");
+      };
+      var key = USGS_API_KEY ? "&api_key=" + encodeURIComponent(USGS_API_KEY) : "";
+      river = fetchJSON("https://api.waterdata.usgs.gov/ogcapi/v0/collections/continuous/items?f=json&limit=1000&monitoring_location_id=" +
+        encodeURIComponent(rv.id) + "&datetime=" + encodeURIComponent(s0 + "/" + s1) + key).then(function (j) {
+        var rows = (j.features || []).map(function (f) { var p = f.properties || {}; return { code: p.parameter_code, v: parseFloat(p.value), t: new Date(p.time).getTime() }; })
+          .filter(function (y) { return !isNaN(y.v) && !isNaN(y.t); });
+        if (!rows.length) throw new Error("empty");
+        pick(rows);
+      }).catch(function () {
+        return fetchJSON("https://waterservices.usgs.gov/nwis/iv/?format=json&parameterCd=00060,00065,00010&sites=" +
+          encodeURIComponent(rv.id.replace(/^USGS-/, "")) + "&startDT=" + encodeURIComponent(s0) + "&endDT=" + encodeURIComponent(s1)).then(function (j) {
+          var rows = [];
+          ((j.value && j.value.timeSeries) || []).forEach(function (ts) {
+            var code = ts.variable.variableCode[0].value;
+            ((ts.values && ts.values[0] && ts.values[0].value) || []).forEach(function (pt) {
+              var v = parseFloat(pt.value); if (!isNaN(v) && v > -999999) rows.push({ code: code, v: v, t: new Date(pt.dateTime).getTime() });
+            });
+          });
+          pick(rows);
+        });
+      }).catch(function () {});
+    }
+
+    var td = state.tide, tide = Promise.resolve();
+    if (td && td.id && !td.sample && td.lat != null && miles(loc.lat, loc.lon, td.lat, td.lon) < TIDE_MAX_MILES) {
+      var b = new Date(t - 864e5);
+      tide = fetchJSON("https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=MLLW&interval=hilo&units=english&time_zone=lst_ldt&format=json&range=72" +
+        "&begin_date=" + ymd(b) + "&station=" + encodeURIComponent(td.id) + "&application=" + APP_ID).then(function (j) {
+        var ev = (j.predictions || []).map(function (p) {
+          var q = p.t.split(/[- :]/);
+          return { t: new Date(+q[0], +q[1] - 1, +q[2], +q[3], +q[4]), v: parseFloat(p.v), type: p.type };
+        });
+        var x = tideAt(ev, new Date(t));
+        if (x) out.tide = x.next.type === "H" ? "Rising" : "Falling";
+      }).catch(function () {});
+    }
+    return Promise.all([wx, river, tide]).then(function () { return out; });
+  }
+  function catchLoc() {
+    return pendingLoc || (editing && editing.lat != null ? { lat: editing.lat, lon: editing.lon } : (state.spot || DEFAULT_SPOT));
+  }
+  function drawCond() {
+    var k = pendingCond || {};
+    var name = pendingLoc ? locName(pendingLoc) : editing ? editing.spotName : (state.spot || DEFAULT_SPOT).name;
+    $("condBox").innerHTML = "<b>" + (editing ? "Conditions for this catch:" : "Saved with this catch:") + "</b> " +
+      esc((name ? name + ", " : "") + condSummary(k)) + (k.sample ? " <b>(sample data)</b>" : "") +
+      (histMsg ? "<br>" + esc(histMsg) : "") +
+      (photoNote ? "<br>" + esc(photoNote) : "") + "<br>Your spot stays private on this phone.";
+  }
   function refreshCond() {
     var t = new Date($("fTime").value); if (isNaN(t.getTime())) t = new Date();
     var k = Object.assign({}, pendingCondBase || {});
-    var loc = pendingLoc || (editing && editing.lat != null ? { lat: editing.lat, lon: editing.lon } : (state.spot || DEFAULT_SPOT));
+    var loc = catchLoc();
+    var ref = k.histAt || k.at || (editing ? editing.time : Date.now());
+    var gap = Math.abs(t - ref) > 2 * 3600e3;
+    histReq++; $("saveCatch").disabled = false; histMsg = "";
     var a = astroAt(loc.lat, loc.lon, t);
     if (a) { k.moon = a.moon; k.solunar = a.solunar; }
     var tt = state.tide && state.tide.events && tideAt(state.tide.events, t);
     if (tt) k.tide = tt.next.type === "H" ? "Rising" : "Falling";
+    else if (gap) k.tide = null;
+    if (gap) {
+      ["airF", "sky", "windMph", "windDir", "pressureIn", "trend", "flowCfs", "score"].forEach(function (f) { k[f] = null; });
+      k.waterF = estWater(loc.lat, t, null); k.waterSrc = "estimate";
+      k.histAt = t.getTime(); delete k.noHist;
+      var age = Date.now() - t.getTime();
+      if (age >= 0 && age <= 7 * 864e5) {
+        histMsg = "Looking up the weather for that time…";
+        var id = histReq, when = t.getTime();
+        $("saveCatch").disabled = true;
+        fetchHistory(loc, when).then(function (h) {
+          if (id !== histReq) return;
+          var c = pendingCond;
+          ["airF", "sky", "windMph", "windDir", "pressureIn", "trend", "flowCfs", "tide"].forEach(function (f) { if (h[f] != null) c[f] = h[f]; });
+          if (h.waterF != null) { c.waterF = h.waterF; c.waterSrc = "gauge"; } else c.waterF = estWater(loc.lat, new Date(when), h.airF);
+          histMsg = h.found.length ? "Weather, pressure and river readings are from the time of the catch, where available."
+            : "Couldn't find weather readings for that time, so only moon, feeding window and tide are saved for it.";
+          if (!h.found.length) c.noHist = true;
+          drawCond();
+        }).finally(function () { if (id === histReq) $("saveCatch").disabled = false; });
+      } else {
+        k.noHist = true;
+        histMsg = age < 0 ? "That time is in the future, so only moon, feeding window and tide are saved."
+          : "Weather history only goes back about a week, so only moon, feeding window and tide are saved for this catch.";
+      }
+    }
     pendingCond = k;
-    var gap = Math.abs(t - (k.at || (editing ? editing.time : Date.now()))) > 2 * 3600e3;
-    var name = pendingLoc ? locName(pendingLoc) : editing ? editing.spotName : (state.spot || DEFAULT_SPOT).name;
-    $("condBox").innerHTML = "<b>" + (editing ? "Conditions for this catch:" : "Saved with this catch:") + "</b> " +
-      esc((name ? name + ", " : "") + condSummary(k)) + (k.sample ? " <b>(sample data)</b>" : "") +
-      (gap ? "<br>Moon, feeding window and tide match the catch time. Weather and water are from when it was logged." : "") +
-      (photoNote ? "<br>" + esc(photoNote) : "") + "<br>Your spot stays private on this phone.";
+    drawCond();
   }
   function setPhotoPreview(b) {
     var p = $("photoPrev"); if (p.dataset.u) { URL.revokeObjectURL(p.dataset.u); delete p.dataset.u; }
@@ -1402,7 +1527,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     var d = $("catchDialog");
     if (d.showModal) d.showModal(); else d.setAttribute("open", "");
   }
-  function closeCatch() { var d = $("catchDialog"); if (d.close) d.close(); else d.removeAttribute("open"); }
+  function closeCatch() { histReq++; $("saveCatch").disabled = false; var d = $("catchDialog"); if (d.close) d.close(); else d.removeAttribute("open"); }
   function saveCatch(e) {
     e.preventDefault();
     var len = $("fLen").value, wt = $("fWt").value;
