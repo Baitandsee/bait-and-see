@@ -229,6 +229,49 @@ button, input { font: inherit; color: inherit; }
 
 .ln-water { stroke: var(--water); }
 .ln-tide { stroke: var(--good); }
+
+/* Catch log */
+.top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.log-btn { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.btn.log-btn:hover { filter: brightness(1.08); border-color: var(--accent); }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn:disabled { opacity: .6; cursor: default; }
+.catches { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.catch { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; align-items: start; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.catch-ph { width: 72px; height: 72px; border-radius: 8px; background: var(--water-soft); object-fit: cover; display: grid; place-content: center; color: var(--water); }
+.catch-ph svg { width: 30px; height: 30px; }
+.catch-top { display: flex; justify-content: space-between; gap: 4px 8px; align-items: baseline; flex-wrap: wrap; }
+.catch-title { font-family: var(--font-display); font-weight: 700; font-size: 20px; line-height: 1.1; }
+.catch-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; color: var(--muted); }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn.danger { color: var(--bad); font-weight: 600; }
+.empty { border: 1px dashed var(--line); border-radius: 12px; padding: 14px; color: var(--muted); font-size: 14px; display: grid; gap: 4px; }
+.empty b { color: var(--ink); }
+.insights { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; font-size: 13.5px; align-items: center; }
+.bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.confirm { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-top: 4px; }
+.log-tools { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+label.btn:focus-within, label.link-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+dialog.sheet { border: 0; padding: 0; border-radius: 16px; background: var(--surface); color: var(--ink); width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); }
+dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
+.sheet form { display: grid; gap: 12px; padding: 18px; }
+.sheet h2 { font-family: var(--font-display); font-size: 26px; text-transform: uppercase; line-height: 1; }
+.fld { display: grid; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; min-width: 0; }
+.fld input, .fld select, .fld textarea { font: inherit; font-size: 16px; font-weight: 500; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 440px) { .two.stack { grid-template-columns: minmax(0, 1fr); } }
+.photo-pick { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.photo-prev { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; }
+.cond-box { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--muted); }
+.cond-box b { color: var(--ink); }
+.err { color: var(--bad); font-size: 13.5px; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
 .foot { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
 .foot a { color: var(--water); }
 .skeleton { color: var(--muted); }
@@ -241,10 +284,16 @@ button, input { font: inherit; color: inherit; }
       <div class="wordmark">Bait <span>&amp; See</span></div>
       <div class="where"><b id="placeName">Finding your spot…</b><span id="clock"></span></div>
     </div>
+    <div class="top-actions">
+    <button class="btn log-btn" id="logBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Log a catch
+    </button>
     <button class="btn" id="locBtn" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
       My location
     </button>
+    </div>
   </header>
 
   <div class="notice" id="sampleNote" hidden></div>
@@ -310,6 +359,20 @@ button, input { font: inherit; color: inherit; }
     <div id="lureProBox"></div>
   </section>
 
+  <section class="card" aria-labelledby="logH">
+    <div class="card-head">
+      <h2 class="label" id="logH">Catch log</h2>
+      <span class="src" id="logCount"></span>
+    </div>
+    <div id="insightsBox"></div>
+    <ul class="catches" id="catchList"><li class="empty"><b>Loading your catches…</b></li></ul>
+    <div class="log-tools" id="logTools">
+      <button type="button" class="link-btn" id="exportBtn">Back up my log</button>
+      <label class="link-btn" for="importInput">Restore a backup<input class="vh" id="importInput" type="file" accept="application/json,.json"></label>
+      <span class="sub" id="logNote" role="status"></span>
+    </div>
+  </section>
+
   <div class="grid">
     <section class="card" aria-labelledby="wxH">
       <div class="card-head"><h2 class="label" id="wxH">Weather</h2><span class="src" id="wxSrc"></span></div>
@@ -366,6 +429,7 @@ button, input { font: inherit; color: inherit; }
           <li>Current weather</li>
           <li>Nearest river gauge and tide station</li>
           <li>Bite score and lure of the day</li>
+          <li>Catch log with photos</li>
         </ul>
       </div>
       <div class="pro">
@@ -375,7 +439,8 @@ button, input { font: inherit; color: inherit; }
           <li>Pressure trend</li>
           <li>Solunar feeding windows</li>
           <li>Retrieve tips and backup lure</li>
-          <li>Coming: catch log, saved spots, alerts</li>
+          <li>Your catch patterns, and lure tips from your own log</li>
+          <li>Coming: saved spots, alerts</li>
         </ul>
       </div>
     </div>
@@ -386,6 +451,58 @@ button, input { font: inherit; color: inherit; }
     <div>Check <a href="https://myfwc.com/fishing/" target="_blank" rel="noopener">FWC fishing regulations</a> before you go.</div>
   </footer>
 </div>
+
+<dialog class="sheet" id="catchDialog" aria-labelledby="catchH">
+  <form id="catchForm" novalidate>
+    <h2 id="catchH">Log a catch</h2>
+    <div class="photo-pick">
+      <img class="photo-prev" id="photoPrev" alt="Catch photo preview" hidden>
+      <label class="btn" for="photoInput">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+        <span id="photoLabel">Add photo</span>
+        <input class="vh" id="photoInput" type="file" accept="image/*">
+      </label>
+    </div>
+    <div class="two stack">
+      <label class="fld" for="fSpecies">Species
+        <select id="fSpecies">
+          <option>Largemouth bass</option><option>Spotted bass</option><option>Shoal bass</option><option>Striped bass</option>
+          <option>Bluegill / bream</option><option>Crappie</option><option>Catfish</option>
+          <option>Redfish</option><option>Speckled trout</option><option>Flounder</option><option>Sheepshead</option><option>Other</option>
+        </select>
+      </label>
+      <label class="fld" for="fTime">When
+        <input id="fTime" type="datetime-local">
+      </label>
+    </div>
+    <div class="two">
+      <label class="fld" for="fLen">Length (inches)
+        <input id="fLen" type="number" inputmode="decimal" step="0.25" min="0" max="80" placeholder="16.5">
+      </label>
+      <label class="fld" for="fWt">Weight (lb)
+        <input id="fWt" type="number" inputmode="decimal" step="0.01" min="0" max="150" placeholder="2.4">
+      </label>
+    </div>
+    <div class="two stack">
+      <label class="fld" for="fLure">Lure
+        <input id="fLure" type="text" list="lureList" autocomplete="off">
+      </label>
+      <label class="fld" for="fColor">Color
+        <input id="fColor" type="text" autocomplete="off">
+      </label>
+    </div>
+    <datalist id="lureList"></datalist>
+    <label class="fld" for="fNotes">Notes
+      <textarea id="fNotes" rows="2" placeholder="Cover, depth, retrieve…"></textarea>
+    </label>
+    <div class="cond-box" id="condBox"></div>
+    <div class="err" id="formErr" role="alert" hidden></div>
+    <div class="actions">
+      <button type="button" class="btn" id="cancelCatch">Cancel</button>
+      <button type="submit" class="btn primary" id="saveCatch">Save catch</button>
+    </div>
+  </form>
+</dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
@@ -445,6 +562,7 @@ button, input { font: inherit; color: inherit; }
     clarity: store("bw.clarity") || "stained",
     pro: !!store("bw.pro"),
     wtOverride: null,
+    catches: null,
     weather: null, river: null, tide: null, astro: null
   };
 
@@ -893,9 +1011,10 @@ button, input { font: inherit; color: inherit; }
     $("lureColor").textContent = "Color: " + L.color;
     $("lureWhy").textContent = L.why;
     $("lureProBox").innerHTML = state.pro
-      ? '<dl class="kv"><dt>Retrieve</dt><dd>' + esc(L.retrieve) + "</dd><dt>Backup</dt><dd>" + esc(L.backup) + "</dd></dl>"
+      ? '<dl class="kv"><dt>Retrieve</dt><dd>' + esc(L.retrieve) + "</dd><dt>Backup</dt><dd>" + esc(L.backup) + "</dd></dl>" + personalLine()
       : lockedRow("Retrieve tips and backup lure");
 
+    renderLog();
     updateMap();
   }
 
@@ -999,6 +1118,277 @@ button, input { font: inherit; color: inherit; }
     }, { timeout: 8000, maximumAge: 300000 });
   }
 
+  // ---------- catch log ----------
+  var memOnly = false;
+  var DB = (function () {
+    var mem = [], dbp = null;
+    function open() {
+      if (dbp) return dbp;
+      dbp = new Promise(function (res, rej) {
+        try {
+          var r = indexedDB.open("baitandsee", 1);
+          r.onupgradeneeded = function () { r.result.createObjectStore("catches", { keyPath: "id" }); };
+          r.onsuccess = function () { res(r.result); };
+          r.onerror = function () { rej(r.error); };
+        } catch (e) { rej(e); }
+      });
+      return dbp;
+    }
+    function tx(mode, fn) {
+      return open().then(function (db) {
+        return new Promise(function (res, rej) {
+          var t = db.transaction("catches", mode), req = fn(t.objectStore("catches"));
+          t.oncomplete = function () { res(req ? req.result : undefined); };
+          t.onerror = function () { rej(t.error); };
+          t.onabort = function () { rej(t.error); };
+        });
+      });
+    }
+    return {
+      all: function () { return tx("readonly", function (s) { return s.getAll(); }).catch(function () { memOnly = true; return mem.slice(); }); },
+      put: function (c) { return tx("readwrite", function (s) { return s.put(c); }).catch(function () { memOnly = true; mem = mem.filter(function (x) { return x.id !== c.id; }); mem.push(c); }); },
+      del: function (id) { return tx("readwrite", function (s) { return s.delete(id); }).catch(function () { memOnly = true; mem = mem.filter(function (x) { return x.id !== id; }); }); }
+    };
+  })();
+
+  var FISH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12c3-5 9.5-6.5 13.5-3l5.5-3.5v13L16 15c-4 3.5-10.5 2-13.5-3z"/><circle cx="7.5" cy="11" r="1"/></svg>';
+  var COMMON_LURES = ["Texas-rigged worm", "Wacky-rigged stick worm", "Spinnerbait", "Chatterbait", "Squarebill crankbait", "Lipless crankbait", "Jerkbait", "Walking topwater", "Buzzbait", "Hollow-body frog", "Shaky head worm", "Ned rig", "Football jig", "Swim jig", "Carolina rig", "Paddle tail on a jig head", "Gold weedless spoon", "Popping cork with shrimp", "Live shrimp", "Live minnow"];
+
+  function trendLabel(tr) { return tr == null ? null : tr <= -0.02 ? "Falling" : tr >= 0.02 ? "Rising" : "Steady"; }
+  function snapshot() {
+    var w = state.weather || {}, a = state.astro, r = state.river, t = state.tide, now = new Date();
+    var win = a && a.windows.find(function (x) { return now >= x.start && now <= x.end; });
+    var tide = null;
+    if (t && t.events) { var ta = tideAt(t.events, now); if (ta) tide = ta.next.type === "H" ? "Rising" : "Falling"; }
+    var wt = waterTemp();
+    return {
+      airF: w.tempF != null ? Math.round(w.tempF) : null, sky: w.sky || null,
+      windMph: w.windMph != null ? Math.round(w.windMph) : null, windDir: w.windDir || null,
+      pressureIn: w.pressureIn != null ? Math.round(w.pressureIn * 100) / 100 : null, trend: trendLabel(w.trendIn),
+      waterF: Math.round(wt.f), waterSrc: wt.src, clarity: state.clarity,
+      moon: a ? phaseName(a.moonPhase) : null, solunar: win ? win.kind + " window" : (a ? "Outside feeding windows" : null),
+      tide: tide, flowCfs: r && r.flowCfs != null ? Math.round(r.flowCfs) : null,
+      score: biteScore().score, sample: !!(w.sample || (r && r.sample) || (t && t.sample))
+    };
+  }
+  function condSummary(k) {
+    return [
+      k.airF != null ? k.airF + "°F air" : "", k.sky || "",
+      k.windMph != null ? k.windMph + " mph " + (k.windDir || "") : "",
+      k.pressureIn != null ? k.pressureIn.toFixed(2) + " in" + (k.trend ? " (" + k.trend.toLowerCase() + ")" : "") : "",
+      k.waterF != null ? k.waterF + "°F water" + (k.waterSrc === "estimate" ? " (est.)" : "") : "",
+      k.clarity ? k.clarity + " water" : "", k.moon || "", k.solunar || "",
+      k.tide ? k.tide.toLowerCase() + " tide" : "", k.flowCfs != null ? k.flowCfs.toLocaleString() + " cfs" : "",
+      k.score != null ? "bite score " + k.score : ""
+    ].filter(Boolean).join(", ");
+  }
+  function tally(cs, f) {
+    var m = {};
+    cs.forEach(function (c) { var k = f(c); if (!k) return; var key = String(k).toLowerCase(); (m[key] = m[key] || { label: k, n: 0 }).n++; });
+    return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.n - a.n; });
+  }
+  function personalLine() {
+    var cs = state.catches || [];
+    if (cs.length < 2) return "";
+    var cur = trendLabel(state.weather && state.weather.trendIn);
+    var pool = cur ? cs.filter(function (c) { return c.cond && c.cond.trend === cur; }) : [];
+    var scope = cur ? " when pressure is " + cur.toLowerCase() : "";
+    if (pool.length < 2) { pool = cs; scope = ""; }
+    var top = tally(pool, function (c) { return c.lure; })[0];
+    if (!top || top.n < 2) return "";
+    return '<div class="sub" style="margin-top:8px"><b style="color:var(--accent)">Your log:</b> ' + top.n + " catches on " + esc(top.label) + esc(scope) + ".</div>";
+  }
+  function insightsHtml(cs) {
+    if (!cs.length) return "";
+    if (!state.pro) return lockedRow("Your patterns: best lures, pressure and feeding windows");
+    function bars(title, rows) {
+      if (!rows.length) return "";
+      var max = rows[0].n;
+      return '<div class="insights"><div class="label" style="font-size:12.5px">' + title + "</div>" + rows.map(function (r) {
+        return '<div class="bar-row"><span>' + esc(r.label) + "</span><b>" + r.n + '</b><span class="bar"><i style="width:' + Math.round(r.n / max * 100) + '%"></i></span></div>';
+      }).join("") + "</div>";
+    }
+    var lures = tally(cs, function (c) { return c.lure; }).slice(0, 3);
+    var trends = tally(cs, function (c) { return c.cond && c.cond.trend; });
+    var inWin = cs.filter(function (c) { return c.cond && /^(Major|Minor) window$/.test(c.cond.solunar || ""); }).length;
+    var biggest = cs.filter(function (c) { return c.weightLb; }).sort(function (a, b) { return b.weightLb - a.weightLb; })[0];
+    var facts = [inWin + " of " + cs.length + " caught during a feeding window"];
+    if (biggest) facts.push("Biggest: " + biggest.weightLb + " lb " + biggest.species.toLowerCase());
+    return '<div style="display:grid;gap:12px">' + bars("Top lures", lures) + bars("Pressure when they bit", trends) +
+      '<div class="sub">' + esc(facts.join(" · ")) + "</div></div>";
+  }
+  var photoUrls = [];
+  function fmtDate(d) { return d.toLocaleDateString([], { month: "short", day: "numeric" }) + ", " + fmtTime(d); }
+  function renderLog() {
+    var list = $("catchList");
+    if (state.catches === null) return;
+    var cs = state.catches.slice().sort(function (a, b) { return b.time - a.time; });
+    photoUrls.forEach(function (u) { URL.revokeObjectURL(u); }); photoUrls = [];
+    $("logCount").textContent = (cs.length ? cs.length + (cs.length === 1 ? " catch" : " catches") : "") +
+      (memOnly ? (cs.length ? " · " : "") + "not saved in this view" : "");
+    if (!cs.length) {
+      list.innerHTML = '<li class="empty"><b>No catches yet.</b><span>Tap “Log a catch” when you land one. The app saves your lure and the conditions, so you can see what works on your water.</span></li>';
+    } else {
+      list.innerHTML = cs.map(function (c) {
+        var ph;
+        if (c.photo) { var u = URL.createObjectURL(c.photo); photoUrls.push(u); ph = '<img class="catch-ph" src="' + u + '" alt="Photo of ' + esc(c.species) + '">'; }
+        else ph = '<div class="catch-ph" aria-hidden="true">' + FISH + "</div>";
+        var size = [c.lengthIn ? c.lengthIn + " in" : "", c.weightLb ? c.weightLb + " lb" : ""].filter(Boolean).join(", ");
+        var k = c.cond || {};
+        var chips = [k.trend ? "Pressure " + k.trend.toLowerCase() : "", /window$/.test(k.solunar || "") && k.solunar !== "Outside feeding windows" ? k.solunar : "",
+          k.waterF != null ? "Water " + k.waterF + "°F" : "", k.tide ? k.tide + " tide" : "", k.sky || "", k.moon || ""].filter(Boolean);
+        return '<li class="catch" data-id="' + esc(c.id) + '">' + ph + '<div style="min-width:0">' +
+          '<div class="catch-top"><span class="catch-title">' + esc(c.species) + (size ? " · " + esc(size) : "") + '</span><span class="catch-meta">' + esc(fmtDate(new Date(c.time))) + "</span></div>" +
+          '<div class="catch-meta">' + esc([c.lure, c.color].filter(Boolean).join(", ") || "No lure noted") + (c.spotName ? " · " + esc(c.spotName) : "") + "</div>" +
+          (chips.length ? '<div class="chips">' + chips.map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("") + "</div>" : "") +
+          (c.notes ? '<div class="catch-meta" style="margin-top:6px">' + esc(c.notes) + "</div>" : "") +
+          '<div class="confirm"><button type="button" class="link-btn" data-act="ask">Delete</button></div></div></li>';
+      }).join("");
+    }
+    $("insightsBox").innerHTML = insightsHtml(cs);
+    $("exportBtn").hidden = !cs.length;
+    var dl = $("lureList"), names = {};
+    COMMON_LURES.concat(cs.map(function (c) { return c.lure; })).forEach(function (n) { if (n) names[n] = 1; });
+    dl.innerHTML = Object.keys(names).map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join("");
+  }
+  function note(msg) { var n = $("logNote"); n.textContent = msg; clearTimeout(note.t); note.t = setTimeout(function () { n.textContent = ""; }, 6000); }
+
+  function compress(file) {
+    return new Promise(function (res) {
+      var img = new Image(), u = URL.createObjectURL(file);
+      img.onload = function () {
+        var m = 1280, sc = Math.min(1, m / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(img.naturalWidth * sc)); c.height = Math.max(1, Math.round(img.naturalHeight * sc));
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(u);
+        c.toBlob(function (b) { res(b || file); }, "image/jpeg", 0.8);
+      };
+      img.onerror = function () { URL.revokeObjectURL(u); res(null); };
+      img.src = u;
+    });
+  }
+  function localInput(d) {
+    var z = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + "T" + z(d.getHours()) + ":" + z(d.getMinutes());
+  }
+  function num(v) { var n = parseFloat(v); return isNaN(n) || n <= 0 ? null : Math.round(n * 100) / 100; }
+  function showErr(msg) { var e = $("formErr"); e.textContent = msg; e.hidden = !msg; }
+
+  var pendingPhoto = null, pendingCond = null;
+  function openCatch() {
+    var L = pickLure();
+    $("catchForm").reset(); pendingPhoto = null; showErr("");
+    var p = $("photoPrev"); p.hidden = true; if (p.dataset.u) { URL.revokeObjectURL(p.dataset.u); delete p.dataset.u; }
+    $("photoLabel").textContent = "Add photo";
+    $("fSpecies").value = state.species === "bass" ? "Largemouth bass" : "Redfish";
+    $("fTime").value = localInput(new Date());
+    $("fLure").value = L.name; $("fColor").value = L.color;
+    pendingCond = snapshot();
+    var spot = state.spot || DEFAULT_SPOT;
+    $("condBox").innerHTML = "<b>Saved with this catch:</b> " + esc((spot.name ? spot.name + ", " : "") + condSummary(pendingCond)) +
+      (pendingCond.sample ? " <b>(sample data)</b>" : "") + "<br>Your spot stays private on this phone.";
+    var d = $("catchDialog");
+    if (d.showModal) d.showModal(); else d.setAttribute("open", "");
+  }
+  function closeCatch() { var d = $("catchDialog"); if (d.close) d.close(); else d.removeAttribute("open"); }
+  function saveCatch(e) {
+    e.preventDefault();
+    var len = $("fLen").value, wt = $("fWt").value;
+    if ((len && num(len) == null) || (wt && num(wt) == null)) { showErr("Length and weight need to be numbers above zero."); return; }
+    var t = new Date($("fTime").value); if (isNaN(t.getTime())) t = new Date();
+    var spot = state.spot || DEFAULT_SPOT;
+    var c = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), time: t.getTime(),
+      species: $("fSpecies").value, lengthIn: num(len), weightLb: num(wt),
+      lure: $("fLure").value.trim(), color: $("fColor").value.trim(), notes: $("fNotes").value.trim(),
+      lat: spot.lat, lon: spot.lon, spotName: spot.name || null, cond: pendingCond || snapshot(), photo: pendingPhoto
+    };
+    var btn = $("saveCatch"); btn.disabled = true;
+    DB.put(c).then(function () {
+      (state.catches = state.catches || []).push(c);
+      closeCatch();
+      if (state.weather) render(); else renderLog();
+      note(memOnly ? "Catch added, but this view can't save it after you close the page." : "Catch saved.");
+    }).finally(function () { btn.disabled = false; });
+  }
+
+  function blobToDataURL(b) { return new Promise(function (r) { var f = new FileReader(); f.onload = function () { r(f.result); }; f.onerror = function () { r(null); }; f.readAsDataURL(b); }); }
+  function dataURLToBlob(u) {
+    var m = /^data:([^;,]+)?(;base64)?,(.*)$/.exec(u || ""); if (!m) return null;
+    var bin = m[2] ? atob(m[3]) : decodeURIComponent(m[3]), arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: m[1] || "image/jpeg" });
+  }
+  function exportLog() {
+    var cs = state.catches || [];
+    Promise.all(cs.map(function (c) {
+      return (c.photo ? blobToDataURL(c.photo) : Promise.resolve(null)).then(function (d) { var o = Object.assign({}, c); o.photo = d; return o; });
+    })).then(function (out) {
+      var blob = new Blob([JSON.stringify({ app: "Bait & See", version: 1, exported: new Date().toISOString(), catches: out })], { type: "application/json" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "bait-and-see-catches-" + ymd(new Date()) + ".json";
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      note("Backup saved. Keep it somewhere safe, like your email or cloud drive.");
+    });
+  }
+  function importLog(e) {
+    var f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    f.text().then(function (txt) {
+      var j = JSON.parse(txt), list = (j && j.catches) || [], n = 0;
+      if (!Array.isArray(list)) throw new Error("bad");
+      return list.reduce(function (p, c) {
+        return p.then(function () {
+          if (!c || typeof c.id !== "string" || typeof c.time !== "number" || typeof c.species !== "string") return;
+          c.photo = typeof c.photo === "string" ? dataURLToBlob(c.photo) : null;
+          return DB.put(c).then(function () {
+            state.catches = (state.catches || []).filter(function (x) { return x.id !== c.id; }); state.catches.push(c); n++;
+          });
+        });
+      }, Promise.resolve()).then(function () {
+        if (state.weather) render(); else renderLog();
+        note(n ? "Restored " + n + (n === 1 ? " catch." : " catches.") : "That backup had no catches in it.");
+      });
+    }).catch(function () { note("That file isn't a Bait & See backup."); });
+  }
+
+  $("logBtn").addEventListener("click", openCatch);
+  $("cancelCatch").addEventListener("click", closeCatch);
+  $("catchForm").addEventListener("submit", saveCatch);
+  $("exportBtn").addEventListener("click", exportLog);
+  $("importInput").addEventListener("change", importLog);
+  $("photoInput").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    $("photoLabel").textContent = "Loading…";
+    compress(f).then(function (b) {
+      pendingPhoto = b;
+      $("photoLabel").textContent = b ? "Change photo" : "Add photo";
+      if (b) {
+        var p = $("photoPrev"); if (p.dataset.u) URL.revokeObjectURL(p.dataset.u);
+        var u = URL.createObjectURL(b); p.src = u; p.dataset.u = u; p.hidden = false; showErr("");
+      } else showErr("That photo couldn't be read. Try a different one.");
+    });
+  });
+  $("catchList").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-act]"); if (!b) return;
+    var li = b.closest("li.catch"), box = b.parentNode, id = li && li.dataset.id;
+    if (b.dataset.act === "ask") {
+      box.innerHTML = '<span>Delete this catch?</span><button type="button" class="link-btn danger" data-act="yes">Delete</button><button type="button" class="link-btn" data-act="no">Keep it</button>';
+    } else if (b.dataset.act === "no") renderLog();
+    else if (b.dataset.act === "yes" && id) {
+      DB.del(id).then(function () {
+        state.catches = (state.catches || []).filter(function (x) { return x.id !== id; });
+        if (state.weather) render(); else renderLog();
+        note("Catch deleted.");
+      });
+    }
+  });
+  function loadCatches() {
+    DB.all().then(function (cs) { state.catches = cs || []; if (state.weather) render(); else renderLog(); });
+  }
+
   // ---------- controls ----------
   function wireSeg(segId, key) {
     var seg = $(segId);
@@ -1027,6 +1417,7 @@ button, input { font: inherit; color: inherit; }
   setInterval(function () { if (state.weather) render(); }, 5 * 60000);
 
   initMap();
+  loadCatches();
   if (state.spot) loadAll(); else locate(true);
 })();
 </script>
