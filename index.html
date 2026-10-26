@@ -462,6 +462,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
         <span id="photoLabel">Add photo</span>
         <input class="vh" id="photoInput" type="file" accept="image/*">
       </label>
+      <button type="button" class="link-btn" id="removePhoto" hidden>Remove photo</button>
     </div>
     <div class="two stack">
       <label class="fld" for="fSpecies">Species
@@ -1242,7 +1243,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
           '<div class="catch-meta">' + esc([c.lure, c.color].filter(Boolean).join(", ") || "No lure noted") + (c.spotName ? " · " + esc(c.spotName) : "") + "</div>" +
           (chips.length ? '<div class="chips">' + chips.map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("") + "</div>" : "") +
           (c.notes ? '<div class="catch-meta" style="margin-top:6px">' + esc(c.notes) + "</div>" : "") +
-          '<div class="confirm"><button type="button" class="link-btn" data-act="ask">Delete</button></div></div></li>';
+          '<div class="confirm"><button type="button" class="link-btn" data-act="edit">Edit</button><button type="button" class="link-btn" data-act="ask">Delete</button></div></div></li>';
       }).join("");
     }
     $("insightsBox").innerHTML = insightsHtml(cs);
@@ -1275,18 +1276,37 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   function num(v) { var n = parseFloat(v); return isNaN(n) || n <= 0 ? null : Math.round(n * 100) / 100; }
   function showErr(msg) { var e = $("formErr"); e.textContent = msg; e.hidden = !msg; }
 
-  var pendingPhoto = null, pendingCond = null;
-  function openCatch() {
-    var L = pickLure();
-    $("catchForm").reset(); pendingPhoto = null; showErr("");
-    var p = $("photoPrev"); p.hidden = true; if (p.dataset.u) { URL.revokeObjectURL(p.dataset.u); delete p.dataset.u; }
-    $("photoLabel").textContent = "Add photo";
-    $("fSpecies").value = state.species === "bass" ? "Largemouth bass" : "Redfish";
-    $("fTime").value = localInput(new Date());
-    $("fLure").value = L.name; $("fColor").value = L.color;
-    pendingCond = snapshot();
-    var spot = state.spot || DEFAULT_SPOT;
-    $("condBox").innerHTML = "<b>Saved with this catch:</b> " + esc((spot.name ? spot.name + ", " : "") + condSummary(pendingCond)) +
+  var pendingPhoto = null, pendingCond = null, editing = null;
+  function setPhotoPreview(b) {
+    var p = $("photoPrev"); if (p.dataset.u) { URL.revokeObjectURL(p.dataset.u); delete p.dataset.u; }
+    if (b) { var u = URL.createObjectURL(b); p.src = u; p.dataset.u = u; p.hidden = false; } else { p.hidden = true; p.removeAttribute("src"); }
+    $("photoLabel").textContent = b ? "Change photo" : "Add photo";
+    $("removePhoto").hidden = !b;
+  }
+  function openCatch(existing) {
+    editing = existing && existing.id ? existing : null;
+    $("catchForm").reset(); showErr("");
+    $("catchH").textContent = editing ? "Edit catch" : "Log a catch";
+    $("saveCatch").textContent = editing ? "Save changes" : "Save catch";
+    var spot;
+    if (editing) {
+      pendingPhoto = editing.photo || null; pendingCond = editing.cond || {};
+      $("fSpecies").value = editing.species; if ($("fSpecies").value !== editing.species) $("fSpecies").value = "Other";
+      $("fTime").value = localInput(new Date(editing.time));
+      $("fLen").value = editing.lengthIn || ""; $("fWt").value = editing.weightLb || "";
+      $("fLure").value = editing.lure || ""; $("fColor").value = editing.color || ""; $("fNotes").value = editing.notes || "";
+      spot = { name: editing.spotName };
+    } else {
+      var L = pickLure();
+      pendingPhoto = null; pendingCond = snapshot();
+      $("fSpecies").value = state.species === "bass" ? "Largemouth bass" : "Redfish";
+      $("fTime").value = localInput(new Date());
+      $("fLure").value = L.name; $("fColor").value = L.color;
+      spot = state.spot || DEFAULT_SPOT;
+    }
+    setPhotoPreview(pendingPhoto);
+    $("condBox").innerHTML = "<b>" + (editing ? "Conditions saved when you logged it:" : "Saved with this catch:") + "</b> " +
+      esc((spot.name ? spot.name + ", " : "") + condSummary(pendingCond)) +
       (pendingCond.sample ? " <b>(sample data)</b>" : "") + "<br>Your spot stays private on this phone.";
     var d = $("catchDialog");
     if (d.showModal) d.showModal(); else d.setAttribute("open", "");
@@ -1297,19 +1317,22 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     var len = $("fLen").value, wt = $("fWt").value;
     if ((len && num(len) == null) || (wt && num(wt) == null)) { showErr("Length and weight need to be numbers above zero."); return; }
     var t = new Date($("fTime").value); if (isNaN(t.getTime())) t = new Date();
-    var spot = state.spot || DEFAULT_SPOT;
+    var spot = state.spot || DEFAULT_SPOT, was = editing;
     var c = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), time: t.getTime(),
+      id: was ? was.id : Date.now().toString(36) + Math.random().toString(36).slice(2, 7), time: t.getTime(),
       species: $("fSpecies").value, lengthIn: num(len), weightLb: num(wt),
       lure: $("fLure").value.trim(), color: $("fColor").value.trim(), notes: $("fNotes").value.trim(),
-      lat: spot.lat, lon: spot.lon, spotName: spot.name || null, cond: pendingCond || snapshot(), photo: pendingPhoto
+      lat: was ? was.lat : spot.lat, lon: was ? was.lon : spot.lon, spotName: was ? was.spotName : (spot.name || null),
+      cond: was ? was.cond : (pendingCond || snapshot()), photo: pendingPhoto
     };
     var btn = $("saveCatch"); btn.disabled = true;
     DB.put(c).then(function () {
-      (state.catches = state.catches || []).push(c);
+      state.catches = (state.catches || []).filter(function (x) { return x.id !== c.id; });
+      state.catches.push(c);
+      editing = null;
       closeCatch();
       if (state.weather) render(); else renderLog();
-      note(memOnly ? "Catch added, but this view can't save it after you close the page." : "Catch saved.");
+      note(was ? "Changes saved." : memOnly ? "Catch added, but this view can't save it after you close the page." : "Catch saved.");
     }).finally(function () { btn.disabled = false; });
   }
 
@@ -1356,6 +1379,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
 
   $("logBtn").addEventListener("click", openCatch);
   $("cancelCatch").addEventListener("click", closeCatch);
+  $("removePhoto").addEventListener("click", function () { pendingPhoto = null; setPhotoPreview(null); });
   $("catchForm").addEventListener("submit", saveCatch);
   $("exportBtn").addEventListener("click", exportLog);
   $("importInput").addEventListener("change", importLog);
@@ -1363,18 +1387,17 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     var f = e.target.files && e.target.files[0]; if (!f) return;
     $("photoLabel").textContent = "Loading…";
     compress(f).then(function (b) {
-      pendingPhoto = b;
-      $("photoLabel").textContent = b ? "Change photo" : "Add photo";
-      if (b) {
-        var p = $("photoPrev"); if (p.dataset.u) URL.revokeObjectURL(p.dataset.u);
-        var u = URL.createObjectURL(b); p.src = u; p.dataset.u = u; p.hidden = false; showErr("");
-      } else showErr("That photo couldn't be read. Try a different one.");
+      if (b) { pendingPhoto = b; setPhotoPreview(b); showErr(""); }
+      else { $("photoLabel").textContent = pendingPhoto ? "Change photo" : "Add photo"; showErr("That photo couldn't be read. Try a different one."); }
     });
   });
   $("catchList").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-act]"); if (!b) return;
     var li = b.closest("li.catch"), box = b.parentNode, id = li && li.dataset.id;
-    if (b.dataset.act === "ask") {
+    if (b.dataset.act === "edit") {
+      var ec = (state.catches || []).find(function (x) { return x.id === id; });
+      if (ec) openCatch(ec);
+    } else if (b.dataset.act === "ask") {
       box.innerHTML = '<span>Delete this catch?</span><button type="button" class="link-btn danger" data-act="yes">Delete</button><button type="button" class="link-btn" data-act="no">Keep it</button>';
     } else if (b.dataset.act === "no") renderLog();
     else if (b.dataset.act === "yes" && id) {
