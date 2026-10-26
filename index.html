@@ -67,7 +67,7 @@ body {
   font-family: var(--font-body); font-size: 15px; line-height: 1.5;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 0 40px;
+  padding-block: 0 calc(88px + env(safe-area-inset-bottom, 0px));
 }
 .wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 14px; }
 h1, h2, h3 { margin: 0; text-wrap: balance; }
@@ -274,6 +274,48 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
 .err { color: var(--bad); font-size: 13.5px; }
 .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 
+/* Tabs, timeline, outlook, saved spots */
+.view { display: grid; gap: 14px; min-width: 0; }
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1500;
+  display: flex; justify-content: center; gap: 6px;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding: 6px max(12px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+}
+.tabbar button {
+  flex: 1; max-width: 170px; min-height: 52px; border: 0; background: transparent; color: var(--muted);
+  font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  display: grid; justify-items: center; align-content: center; gap: 2px; border-radius: 12px; cursor: pointer;
+}
+.tabbar button svg { width: 22px; height: 22px; }
+.tabbar button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+#view-spots #map { height: min(420px, 55vh); }
+.btn.small { padding: 6px 12px; font-size: 13px; }
+.timeline { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+.tl-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tl-best { font-size: 15px; }
+.tl-best b { font-family: var(--font-display); font-size: 19px; letter-spacing: .01em; }
+.tl-svg { width: 100%; height: auto; display: block; }
+.outlook { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ol-row { display: grid; grid-template-columns: minmax(88px, auto) minmax(0, 1fr) auto; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.ol-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.ol-day { font-family: var(--font-display); font-weight: 700; font-size: 18px; text-transform: uppercase; }
+.ol-mid { font-size: 13.5px; color: var(--muted); min-width: 0; }
+.ol-mid b { display: block; color: var(--ink); font-size: 14.5px; }
+.score-pill { font-family: var(--font-display); font-weight: 700; font-size: 15px; background: var(--ink); color: var(--surface); border-radius: 999px; padding: 2px 10px; font-variant-numeric: tabular-nums; }
+.yourpick { background: var(--water-soft); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 10px; }
+.yourpick b { color: var(--water); }
+.pin-saved { width: 16px; height: 16px; border-radius: 50%; background: var(--surface); border: 4px solid var(--accent); box-shadow: 0 0 0 1px var(--ink); }
+.legend .pin-saved { width: 12px; height: 12px; border-width: 3px; }
+.spots { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.spot-row { display: flex; gap: 8px 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.spot-row .nm { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.spot-row .meta { font-size: 12.5px; color: var(--muted); }
+.spot-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.save-spot { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.save-spot .fld { flex: 1 1 200px; }
+.rename-in { font: inherit; font-size: 16px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 100%; }
+
 .foot { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
 .foot a { color: var(--water); }
 .skeleton { color: var(--muted); }
@@ -300,19 +342,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
 
   <div class="notice" id="sampleNote" hidden></div>
 
-  <section aria-label="Map">
-    <div class="map-shell">
-      <div id="map" role="application" aria-label="Map. Tap anywhere to check conditions at that spot."></div>
-      <div class="map-hint">Tap the map to scout a different spot</div>
-    </div>
-    <div class="legend" style="margin-top:8px">
-      <span><i class="dot pin-you"></i>Your spot</span>
-      <span><i class="dot pin-gauge"></i>River gauge</span>
-      <span><i class="dot pin-tide"></i>Tide station</span>
-      <span id="tileCredit">Map © OpenStreetMap contributors</span>
-    </div>
-  </section>
-
+  <div class="view" id="view-today">
   <section class="card" aria-labelledby="biteH">
     <div class="card-head">
       <h2 class="label" id="biteH">Bite outlook right now</h2>
@@ -332,6 +362,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       </div>
     </div>
     <div id="factorsBox"></div>
+    <div id="timelineBox"></div>
   </section>
 
   <section class="card" aria-labelledby="lureH">
@@ -359,6 +390,11 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       <div class="lure-why" id="lureWhy"></div>
     </div>
     <div id="lureProBox"></div>
+  </section>
+
+  <section class="card" aria-labelledby="olH">
+    <div class="card-head"><h2 class="label" id="olH">3-day outlook</h2><span class="src">NWS forecast</span></div>
+    <div id="outlookBox"></div>
   </section>
 
   <div class="grid">
@@ -404,6 +440,42 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     </section>
   </div>
 
+  <section class="card" aria-labelledby="planH">
+    <div class="card-head">
+      <h2 class="label" id="planH">Free and Pro</h2>
+      <label class="switch" for="proToggle"><input type="checkbox" id="proToggle">Preview Pro</label>
+    </div>
+    <div class="plan">
+      <div>
+        <h3>Free</h3>
+        <ul>
+          <li>Map with your spot</li>
+          <li>Current weather</li>
+          <li>Nearest river gauge and tide station</li>
+          <li>Bite score, best time today and lure of the day</li>
+          <li>Calendar reminders for the best window</li>
+          <li>Catch log with photos</li>
+        </ul>
+      </div>
+      <div class="pro">
+        <h3>Pro <span class="pro-tag">SUB</span></h3>
+        <ul>
+          <li>Why the score is what it is</li>
+          <li>Pressure trend</li>
+          <li>Solunar feeding windows</li>
+          <li>Retrieve tips and backup lure</li>
+          <li>3-day bite outlook</li>
+          <li>Saved spots</li>
+          <li>Your catch patterns, and lure picks that learn from your log</li>
+          <li>Coming: push alerts</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  </div>
+
+  <div class="view" id="view-log" hidden>
   <section class="card" aria-labelledby="logH">
     <div class="card-head">
       <h2 class="label" id="logH">Catch log</h2>
@@ -418,41 +490,49 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     </div>
   </section>
 
-  <section class="card" aria-labelledby="planH">
-    <div class="card-head">
-      <h2 class="label" id="planH">Free and Pro</h2>
-      <label class="switch" for="proToggle"><input type="checkbox" id="proToggle">Preview Pro</label>
+  </div>
+
+  <div class="view" id="view-spots" hidden>
+  <section aria-label="Map">
+    <div class="map-shell">
+      <div id="map" role="application" aria-label="Map. Tap anywhere to check conditions at that spot."></div>
+      <div class="map-hint">Tap the map to scout a different spot</div>
     </div>
-    <div class="plan">
-      <div>
-        <h3>Free</h3>
-        <ul>
-          <li>Map with your spot</li>
-          <li>Current weather</li>
-          <li>Nearest river gauge and tide station</li>
-          <li>Bite score and lure of the day</li>
-          <li>Catch log with photos</li>
-        </ul>
-      </div>
-      <div class="pro">
-        <h3>Pro <span class="pro-tag">SUB</span></h3>
-        <ul>
-          <li>Why the score is what it is</li>
-          <li>Pressure trend</li>
-          <li>Solunar feeding windows</li>
-          <li>Retrieve tips and backup lure</li>
-          <li>Your catch patterns, and lure tips from your own log</li>
-          <li>Coming: saved spots, alerts</li>
-        </ul>
-      </div>
+    <div class="legend" style="margin-top:8px">
+      <span><i class="dot pin-you"></i>Your spot</span>
+      <span><i class="dot pin-gauge"></i>River gauge</span>
+      <span><i class="dot pin-tide"></i>Tide station</span>
+      <span><i class="dot pin-saved"></i>Saved spot</span>
+      <span id="tileCredit">Map © OpenStreetMap contributors</span>
     </div>
   </section>
+
+  <section class="card" aria-labelledby="spotsH">
+    <div class="card-head"><h2 class="label" id="spotsH">Saved spots</h2><span class="src" id="spotsCount"></span></div>
+    <div id="spotsBox"></div>
+  </section>
+  </div>
 
   <footer class="foot">
     <div>Data: National Weather Service, USGS Water Data, NOAA Tides &amp; Currents, OpenStreetMap. Sun and moon times are calculated on your phone.</div>
     <div>Check <a href="https://myfwc.com/fishing/" target="_blank" rel="noopener">FWC fishing regulations</a> before you go.</div>
   </footer>
 </div>
+
+<nav class="tabbar" aria-label="Sections">
+  <button type="button" data-tab="today" aria-current="page">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    Today
+  </button>
+  <button type="button" data-tab="log" aria-current="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12c3-5 9.5-6.5 13.5-3l5.5-3.5v13L16 15c-4 3.5-10.5 2-13.5-3z"/><circle cx="7.5" cy="11" r="1"/></svg>
+    Log
+  </button>
+  <button type="button" data-tab="spots" aria-current="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+    Spots
+  </button>
+</nav>
 
 <dialog class="sheet" id="catchDialog" aria-labelledby="catchH">
   <form id="catchForm" novalidate>
@@ -632,6 +712,11 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
           if (best && Math.abs(best.t - target) < 2 * 3600e3 && best !== pts[0]) w.trendIn = pts[0].p - best.p;
         }
         var hp = hourly && hourly.properties && hourly.properties.periods && hourly.properties.periods[0];
+        var periods = hourly && hourly.properties && hourly.properties.periods;
+        if (periods && periods.length) w.hourly = periods.map(function (p) {
+          var ws = String(p.windSpeed || "").match(/\d+/g), wm = ws ? ws.reduce(function (a, b) { return a + +b; }, 0) / ws.length : null;
+          return { t: new Date(p.startTime), tempF: p.temperatureUnit === "C" ? cToF(p.temperature) : p.temperature, windMph: wm, sky: p.shortForecast || "", skyKind: skyKind(p.shortForecast) };
+        });
         if (hp) {
           if (w.tempF == null) w.tempF = hp.temperatureUnit === "C" ? cToF(hp.temperature) : hp.temperature;
           if (!w.sky) w.sky = hp.shortForecast;
@@ -730,7 +815,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       if (!best) throw new Error("no stations");
       if (best.d > TIDE_MAX_MILES) return { none: true, distMi: best.d, name: best.name };
       var start = new Date(); start.setDate(start.getDate() - 1);
-      var url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=MLLW&interval=hilo&units=english&time_zone=lst_ldt&format=json&range=72" +
+      var url = "https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=predictions&datum=MLLW&interval=hilo&units=english&time_zone=lst_ldt&format=json&range=120" +
         "&begin_date=" + ymd(start) + "&station=" + encodeURIComponent(best.id) + "&application=" + APP_ID;
       return fetchJSON(url).then(function (j) {
         var ev = (j.predictions || []).map(function (p) {
@@ -744,9 +829,9 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   }
 
   // ---------- sun, moon, solunar ----------
-  function computeAstro(lat, lon) {
+  function computeAstro(lat, lon, when) {
     if (!window.SunCalc) return null;
-    var now = new Date(), day = new Date(now); day.setHours(0, 0, 0, 0);
+    var now = when ? new Date(when) : new Date(), day = new Date(now); day.setHours(0, 0, 0, 0);
     var sun = SunCalc.getTimes(new Date(day.getTime() + 12 * 3600e3), lat, lon);
     var moonT = SunCalc.getMoonTimes(day, lat, lon);
     var ill = SunCalc.getMoonIllumination(now);
@@ -808,53 +893,61 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   }
 
   // ---------- the brains: bite score ----------
-  function lowLightNow() {
-    var a = state.astro, now = Date.now();
+  function lowLightAt(t, a) {
     if (!a || !a.sunrise || !a.sunset) return false;
-    return Math.abs(now - a.sunrise) < 90 * 60e3 || Math.abs(now - a.sunset) < 90 * 60e3 || now < a.sunrise || now > a.sunset;
+    return Math.abs(t - a.sunrise) < 90 * 60e3 || Math.abs(t - a.sunset) < 90 * 60e3 || t < a.sunrise || t > a.sunset;
   }
-  function biteScore() {
-    var s = 5, f = [], w = state.weather || {}, a = state.astro, now = new Date();
+  function lowLightNow() { return lowLightAt(Date.now(), state.astro); }
+  function scoreFor(t, c) {
+    var s = 5, f = [];
     function add(v, text) { s += v; f.push({ v: v, text: text }); }
-    if (w.trendIn != null) {
-      if (w.trendIn <= -0.03) add(2, "Pressure falling");
-      else if (w.trendIn >= 0.06) add(-1.5, "Pressure rising fast");
-      else if (w.trendIn >= 0.03) add(-0.5, "Pressure rising");
+    if (c.trendIn != null) {
+      if (c.trendIn <= -0.03) add(2, "Pressure falling");
+      else if (c.trendIn >= 0.06) add(-1.5, "Pressure rising fast");
+      else if (c.trendIn >= 0.03) add(-0.5, "Pressure rising");
       else add(0.5, "Pressure steady");
     }
-    if (w.pressureIn != null && w.pressureIn > 30.25 && (w.trendIn || 0) >= 0) add(-0.5, "High, bluebird pressure");
+    if (c.pressureIn != null && c.pressureIn > 30.25 && (c.trendIn || 0) >= 0) add(-0.5, "High, bluebird pressure");
+    var a = c.astro;
     if (a) {
-      var inWin = a.windows.find(function (x) { return now >= x.start && now <= x.end; });
+      var inWin = a.windows.find(function (x) { return t >= x.start && t <= x.end; });
       if (inWin) add(inWin.kind === "Major" ? 1.5 : 0.75, inWin.kind + " solunar window");
       if (a.moonPhase < 0.07 || a.moonPhase > 0.93 || Math.abs(a.moonPhase - 0.5) < 0.07) add(0.5, phaseName(a.moonPhase));
     }
-    if (lowLightNow()) add(1, "Low light");
-    var wt = waterTemp().f;
-    if (state.species === "bass") {
+    if (a && a.sunrise && a.sunset && (Math.abs(t - a.sunrise) < 90 * 60e3 || Math.abs(t - a.sunset) < 90 * 60e3)) add(1, "Low light");
+    else if (lowLightAt(t, a)) add(0.5, "After dark");
+    var wt = c.waterF;
+    if (c.species === "bass") {
       if (wt >= 60 && wt <= 78) add(1, "Prime water temp");
       else if (wt < 50) add(-1.5, "Cold water");
       else if (wt > 88) add(-1, "Hot water");
-      if (w.skyKind === "cloudy") add(0.5, "Cloud cover");
+      if (c.skyKind === "cloudy") add(0.5, "Cloud cover");
     } else {
       if (wt >= 65 && wt <= 82) add(1, "Prime water temp");
       else if (wt < 55) add(-1.5, "Cold water");
-      var t = state.tide && state.tide.events && tideAt(state.tide.events, now);
-      if (t) {
-        var move = Math.sin(Math.PI * t.f);
+      var td = c.tideEvents && tideAt(c.tideEvents, t);
+      if (td) {
+        var move = Math.sin(Math.PI * td.f);
         if (move > 0.6) add(1, "Tide moving");
         else if (move < 0.25) add(-1, "Near slack tide");
       }
     }
-    if (w.windMph != null) {
-      if (w.windMph >= 5 && w.windMph <= 15) add(0.5, "Fishable breeze");
-      else if (w.windMph > 20) add(-1.5, "Strong wind");
+    if (c.windMph != null) {
+      if (c.windMph >= 5 && c.windMph <= 15) add(0.5, "Fishable breeze");
+      else if (c.windMph > 20) add(-1.5, "Strong wind");
     }
-    var hr = now.getHours();
+    var hr = new Date(t).getHours();
     if (wt > 84 && hr >= 11 && hr <= 15) add(-1, "Midday heat");
-    s = Math.max(1, Math.min(10, s));
-    var label = s >= 8 ? "Get out there" : s >= 6.5 ? "Good bite" : s >= 4.5 ? "Fair bite" : "Tough bite";
-    return { score: Math.round(s), label: label, factors: f };
+    var raw = Math.max(1, Math.min(10, s));
+    var label = raw >= 8 ? "Get out there" : raw >= 6.5 ? "Good bite" : raw >= 4.5 ? "Fair bite" : "Tough bite";
+    return { score: Math.round(raw), raw: raw, label: label, factors: f };
   }
+  function nowCtx() {
+    var w = state.weather || {};
+    return { windMph: w.windMph, skyKind: w.skyKind, trendIn: w.trendIn, pressureIn: w.pressureIn, waterF: waterTemp().f,
+      astro: state.astro, tideEvents: state.tide && state.tide.events, species: state.species };
+  }
+  function biteScore() { return scoreFor(new Date(), nowCtx()); }
 
   // ---------- the brains: lure picker ----------
   function pickLure() {
@@ -1016,8 +1109,12 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     $("lureWhy").textContent = L.why;
     $("lureProBox").innerHTML = state.pro
       ? '<dl class="kv"><dt>Retrieve</dt><dd>' + esc(L.retrieve) + "</dd><dt>Backup</dt><dd>" + esc(L.backup) + "</dd></dl>" + personalLine()
-      : lockedRow("Retrieve tips and backup lure");
+      : lockedRow("Retrieve tips and backup lure") + (learnedPick() ? lockedRow("Your log has a lure pick for conditions like today") : "");
 
+    $("timelineBox").innerHTML = timelineHtml();
+    renderOutlook();
+    noteSpotScore(b.score);
+    renderSpots();
     renderLog();
     updateMap();
   }
@@ -1055,6 +1152,117 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       '<path d="' + area + '" style="fill:var(--water-soft)"/><path d="' + line + '" fill="none" style="stroke:var(--water)" stroke-width="2"/>' + nowLine + marks + "</svg>";
   }
 
+  // ---------- best time today, 3-day outlook, reminders ----------
+  var lastWindows = {};
+  function fmtHour(h) { var hh = ((h + 11) % 12) + 1; return hh + (h % 24 < 12 ? " AM" : " PM"); }
+  function synthHourly(w) {
+    var day = new Date(), out = []; day.setHours(0, 0, 0, 0);
+    for (var i = 0; i < 96; i++) {
+      var t = new Date(day.getTime() + i * 3600e3), h = t.getHours();
+      out.push({ t: t, tempF: (w.tempF || 75) - 6 + 10 * Math.max(0, Math.sin((h - 6) / 12 * Math.PI)), windMph: w.windMph != null ? w.windMph : 8,
+        sky: w.sky || "", skyKind: w.skyKind || "partly" });
+    }
+    return out;
+  }
+  function dayRows(offset) {
+    var s = state.spot || DEFAULT_SPOT, w = state.weather || {};
+    var day = new Date(); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() + offset);
+    var astro = offset === 0 ? state.astro : computeAstro(s.lat, s.lon, new Date(day.getTime() + 12 * 3600e3));
+    var hourly = w.hourly || [], rows = [], temps = [], skies = {}, wt = waterTemp().f;
+    for (var h = 5; h <= 21; h++) {
+      var t = new Date(day.getTime() + h * 3600e3), hp = null;
+      hourly.forEach(function (p) { var d = Math.abs(p.t - t); if (d <= 90 * 60e3 && (!hp || d < hp.d)) hp = { d: d, p: p }; });
+      hp = hp && hp.p;
+      var sc = scoreFor(t, {
+        windMph: hp ? hp.windMph : (offset === 0 ? w.windMph : null), skyKind: hp ? hp.skyKind : (offset === 0 ? w.skyKind : null),
+        trendIn: offset === 0 ? w.trendIn : null, pressureIn: offset === 0 ? w.pressureIn : null,
+        waterF: wt, astro: astro, tideEvents: state.tide && state.tide.events, species: state.species
+      });
+      rows.push({ h: h, t: t, score: sc.score, raw: sc.raw });
+      if (hp) { temps.push(hp.tempF); if (h >= 7 && h <= 18 && hp.sky) skies[hp.sky] = (skies[hp.sky] || 0) + 1; }
+    }
+    var sky = Object.keys(skies).sort(function (a, b) { return skies[b] - skies[a]; })[0] || "";
+    return { rows: rows, temps: temps, sky: sky, day: day };
+  }
+  function bestWindow(rows, fromH) {
+    var b = null;
+    for (var i = 0; i < rows.length - 1; i++) {
+      if (rows[i].h < fromH) continue;
+      var avg = (rows[i].raw + rows[i + 1].raw) / 2;
+      if (!b || avg > b.avg + 0.01) b = { h: rows[i].h, avg: avg, score: Math.round(Math.max(rows[i].raw, rows[i + 1].raw)) };
+    }
+    return b;
+  }
+  function mkWin(day, b) {
+    var start = new Date(day.getTime() + b.h * 3600e3);
+    return { start: start, end: new Date(start.getTime() + 2 * 3600e3), score: b.score };
+  }
+  function timelineSvg(rows, best, isToday) {
+    var W = 340, H = 96, padT = 10, padB = 18, n = rows.length, bw = W / n, now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
+    var parts = [];
+    rows.forEach(function (r, i) {
+      var h = Math.max(3, (r.raw / 10) * (H - padT - padB)), x = i * bw + 2, y = H - padB - h;
+      var col = r.raw >= 7.5 ? "var(--good)" : r.raw >= 6 ? "var(--accent)" : r.raw >= 4.5 ? "var(--water)" : "var(--muted)";
+      var past = isToday && r.h + 1 <= nowH;
+      parts.push('<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + (bw - 4).toFixed(1) + '" height="' + h.toFixed(1) + '" rx="3" style="fill:' + col + ';opacity:' + (past ? 0.3 : 1) + '"/>');
+      if (r.h % 3 === 0) parts.push('<text x="' + (x + (bw - 4) / 2).toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="10" style="fill:var(--muted)">' + fmtHour(r.h).replace(" AM", "a").replace(" PM", "p") + "</text>");
+    });
+    if (best) {
+      var bi = rows.findIndex(function (r) { return r.h === best.h; });
+      parts.push('<rect x="' + (bi * bw).toFixed(1) + '" y="1" width="' + (2 * bw).toFixed(1) + '" height="' + (H - padB + 1) + '" rx="5" fill="none" style="stroke:var(--ink)" stroke-width="1.5"/>');
+    }
+    if (isToday && nowH >= 5 && nowH <= 22) {
+      var nx = ((nowH - 5) / n) * W;
+      parts.push('<line x1="' + nx.toFixed(1) + '" x2="' + nx.toFixed(1) + '" y1="2" y2="' + (H - padB) + '" style="stroke:var(--ink)" stroke-width="1" stroke-dasharray="2 2"/>');
+    }
+    var label = "Bite score by hour from 5 AM to 9 PM" + (best ? ", best from " + fmtHour(best.h) + " to " + fmtHour(best.h + 2) : "");
+    return '<svg class="tl-svg" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(label) + '">' + parts.join("") + "</svg>";
+  }
+  function timelineHtml() {
+    var d = dayRows(0), b = bestWindow(d.rows, new Date().getHours());
+    lastWindows[0] = b ? mkWin(d.day, b) : null;
+    var head = b ? 'Best time today: <b>' + fmtHour(b.h) + "–" + fmtHour(b.h + 2) + "</b> · score " + b.score
+      : "Today's best hours have passed. Check tomorrow in the 3-day outlook.";
+    return '<div class="timeline"><div class="tl-head"><span class="tl-best">' + head + "</span>" +
+      (b ? '<button type="button" class="btn small" data-remind="0">Remind me</button>' : "") + "</div>" + timelineSvg(d.rows, b, true) + "</div>";
+  }
+  function renderOutlook() {
+    var box = $("outlookBox");
+    if (!state.pro) { box.innerHTML = lockedRow("Best fishing window for the next 3 days"); return; }
+    var html = [0, 1, 2].map(function (o) {
+      var d = dayRows(o), b = bestWindow(d.rows, o === 0 ? new Date().getHours() : 0);
+      lastWindows[o] = b ? mkWin(d.day, b) : null;
+      var name = o === 0 ? "Today" : o === 1 ? "Tomorrow" : d.day.toLocaleDateString([], { weekday: "long" });
+      var range = d.temps.length ? Math.round(Math.min.apply(null, d.temps)) + "–" + Math.round(Math.max.apply(null, d.temps)) + "°F" : "";
+      return '<li class="ol-row"><span class="ol-day">' + esc(name) + '</span><span class="ol-mid"><b>' +
+        (b ? "Best " + fmtHour(b.h) + "–" + fmtHour(b.h + 2) : "Best hours have passed") + "</b>" + esc([d.sky, range].filter(Boolean).join(" · ")) +
+        (b ? '<br><button type="button" class="link-btn" data-remind="' + o + '">Remind me</button>' : "") + "</span>" +
+        (b ? '<span class="score-pill">' + b.score + "</span>" : "<span></span>") + "</li>";
+    }).join("");
+    box.innerHTML = '<ul class="outlook">' + html + '</ul><div class="sub" style="margin-top:10px">Future days use the forecast wind and sky, plus moon, light and tide. Pressure changes can\'t be forecast well, so they only count today.</div>';
+  }
+  function icsDate(d) { return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); }
+  function icsEsc(x) { return String(x).replace(/\\/g, "\\\\").replace(/([,;])/g, "\\$1").replace(/\n/g, "\\n"); }
+  function remind(win) {
+    var s = state.spot || DEFAULT_SPOT, L = pickLure();
+    var ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Bait and See//EN", "CALSCALE:GREGORIAN", "BEGIN:VEVENT",
+      "UID:" + win.start.getTime() + "-" + Math.round(s.lat * 1000) + "@baitandsee", "DTSTAMP:" + icsDate(new Date()),
+      "DTSTART:" + icsDate(win.start), "DTEND:" + icsDate(win.end),
+      "SUMMARY:" + icsEsc("Bite window" + (s.name ? " at " + s.name : "") + " (score " + win.score + ")"),
+      "DESCRIPTION:" + icsEsc("Bait & See pick: " + L.name + ", " + L.color + "."),
+      "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Bite window starts in 30 minutes", "TRIGGER:-PT30M", "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+    a.download = "bite-window-" + ymd(win.start) + ".ics";
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-remind]"); if (!b) return;
+    var w = lastWindows[b.dataset.remind]; if (w) remind(w);
+  });
+
   // ---------- map ----------
   var map = null, layers = [];
   function initMap() {
@@ -1073,6 +1281,11 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     layers.forEach(function (l) { map.removeLayer(l); }); layers = [];
     var s = state.spot || DEFAULT_SPOT, pts = [[s.lat, s.lon]];
     layers.push(L.marker([s.lat, s.lon], { icon: icon("pin-you", 18), interactive: false }).addTo(map));
+    spots.forEach(function (x) {
+      var m = L.marker([x.lat, x.lon], { icon: icon("pin-saved", 16), title: x.name, keyboard: true }).addTo(map);
+      m.on("click", function () { setSpot(x.lat, x.lon, x.name); });
+      layers.push(m);
+    });
     var r = state.river, t = state.tide;
     if (r && r.lat != null) {
       layers.push(L.polyline([[s.lat, s.lon], [r.lat, r.lon]], { className: "ln-water", weight: 1.5, dashArray: "4 4", interactive: false }).addTo(map));
@@ -1085,6 +1298,69 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     map.fitBounds(pts, { padding: [36, 36], maxZoom: 11 });
   }
 
+  // ---------- saved spots ----------
+  var spots = store("bw.spots") || [];
+  function saveSpots() { store("bw.spots", spots); }
+  function spotMatch(lat, lon) { return spots.find(function (x) { return miles(lat, lon, x.lat, x.lon) < 0.3; }); }
+  function noteSpotScore(score) {
+    var s = state.spot; if (!s || (state.weather && state.weather.sample)) return;
+    var m = spotMatch(s.lat, s.lon); if (m) { m.lastScore = score; m.lastAt = Date.now(); saveSpots(); }
+  }
+  function renderSpots() {
+    var box = $("spotsBox"), s = state.spot || DEFAULT_SPOT;
+    if (box.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
+    $("spotsCount").textContent = spots.length ? spots.length + (spots.length === 1 ? " spot" : " spots") : "";
+    if (!state.pro) { box.innerHTML = lockedRow("Save your favorite spots and check them in one tap"); return; }
+    var cur = spotMatch(s.lat, s.lon);
+    var top = cur ? '<div class="sub">You\'re looking at <b>' + esc(cur.name) + "</b>, one of your saved spots.</div>"
+      : '<form class="save-spot" id="saveSpotForm"><label class="fld" for="spotName">Save the spot you\'re looking at<input id="spotName" type="text" maxlength="40" autocomplete="off" value="' +
+        esc(s.name && s.name.indexOf("Near ") !== 0 ? s.name : "") + '" placeholder="Name it, like Shoal River bridge"></label><button type="submit" class="btn primary">Save spot</button></form>';
+    var list = spots.length ? '<ul class="spots">' + spots.map(function (x) {
+      var d = miles(s.lat, s.lon, x.lat, x.lon);
+      return '<li class="spot-row" data-id="' + esc(x.id) + '"><div style="min-width:0"><div class="nm">' + esc(x.name) + '</div><div class="meta">' +
+        (d < 0.3 ? "You're looking at it" : d.toFixed(d < 10 ? 1 : 0) + " mi away") +
+        (x.lastScore != null ? " · last score " + x.lastScore + ", " + esc(fmtDate(new Date(x.lastAt))) : "") + "</div></div>" +
+        '<div class="spot-actions"><button type="button" class="btn small" data-act="check">Check</button><button type="button" class="link-btn" data-act="rename">Rename</button><button type="button" class="link-btn" data-act="del">Delete</button></div></li>';
+    }).join("") + "</ul>"
+      : '<div class="empty"><b>No saved spots yet.</b><span>Tap the map to pick a spot, name it, and save it. Your spots stay private on this phone.</span></div>';
+    box.innerHTML = top + list;
+  }
+  $("spotsBox").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var inp = $("spotName"), nm = (inp.value || "").trim(), s = state.spot || DEFAULT_SPOT;
+    if (!nm) { inp.placeholder = "Give it a name first"; inp.focus(); return; }
+    spots.push({ id: Date.now().toString(36), name: nm.slice(0, 40), lat: s.lat, lon: s.lon });
+    saveSpots(); s.name = nm.slice(0, 40); store("bw.spot", s); $("placeName").textContent = s.name;
+    inp.blur(); if (state.weather) render(); else renderSpots();
+  });
+  $("spotsBox").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.classList.contains("rename-in")) { e.preventDefault(); var b = e.target.closest(".spot-row").querySelector('[data-act="rename-save"]'); if (b) b.click(); }
+  });
+  $("spotsBox").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-act]"); if (!b) return;
+    var li = b.closest(".spot-row"), id = li && li.dataset.id, x = spots.find(function (y) { return y.id === id; });
+    if (!x) return;
+    var act = b.dataset.act;
+    if (act === "check") { setSpot(x.lat, x.lon, x.name); showTab("today"); }
+    else if (act === "del") {
+      b.parentNode.innerHTML = '<span class="meta">Delete ' + esc(x.name) + '?</span><button type="button" class="link-btn danger" data-act="del-yes">Delete</button><button type="button" class="link-btn" data-act="keep">Keep</button>';
+    } else if (act === "del-yes") { spots = spots.filter(function (y) { return y.id !== id; }); saveSpots(); renderSpots(); updateMap(); }
+    else if (act === "keep") renderSpots();
+    else if (act === "rename") {
+      var nmEl = li.querySelector(".nm");
+      nmEl.innerHTML = '<input class="rename-in" type="text" maxlength="40" value="' + esc(x.name) + '" aria-label="New name for ' + esc(x.name) + '">';
+      b.dataset.act = "rename-save"; b.textContent = "Save";
+      var i = nmEl.querySelector("input"); i.focus(); i.select();
+    } else if (act === "rename-save") {
+      var i2 = li.querySelector(".rename-in"), v = ((i2 && i2.value) || "").trim();
+      if (v) {
+        x.name = v.slice(0, 40); saveSpots();
+        var cs = state.spot; if (cs && miles(cs.lat, cs.lon, x.lat, x.lon) < 0.3) { cs.name = x.name; store("bw.spot", cs); $("placeName").textContent = x.name; }
+      }
+      document.activeElement && document.activeElement.blur(); renderSpots(); updateMap();
+    }
+  });
+
   // ---------- loading ----------
   var loadId = 0;
   function loadAll() {
@@ -1095,6 +1371,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       if (id !== loadId) return;
       var allFailed = res.every(function (x) { return x.status === "rejected"; });
       state.weather = res[0].status === "fulfilled" ? res[0].value : sampleWeather();
+      if (!state.weather.hourly) state.weather.hourly = synthHourly(state.weather);
       if (res[1].status === "fulfilled") state.river = res[1].value;
       else state.river = allFailed ? sampleRiver() : false;
       if (res[2].status === "fulfilled") state.tide = res[2].value;
@@ -1191,16 +1468,26 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
     cs.forEach(function (c) { var k = f(c); if (!k) return; var key = String(k).toLowerCase(); (m[key] = m[key] || { label: k, n: 0 }).n++; });
     return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.n - a.n; });
   }
+  var INSHORE = ["Redfish", "Speckled trout", "Flounder", "Sheepshead"];
+  function learnedPick() {
+    var cs = state.catches || []; if (cs.length < 3) return null;
+    var bassMode = state.species === "bass", wt = waterTemp().f, w = state.weather || {}, tr = trendLabel(w.trendIn), sk = w.skyKind, cl = state.clarity;
+    var close = cs.filter(function (c) { return c.lure && (INSHORE.indexOf(c.species) >= 0) !== bassMode; }).filter(function (c) {
+      var k = c.cond || {}, sc = 0;
+      if (k.waterF != null && Math.abs(k.waterF - wt) <= 6) sc += 2;
+      if (tr && k.trend === tr) sc += 1.5;
+      if (k.clarity && k.clarity === cl) sc += 1;
+      if (sk && k.sky && skyKind(k.sky) === sk) sc += 1;
+      return sc >= 3;
+    });
+    if (close.length < 2) return null;
+    var top = tally(close, function (c) { return c.lure; })[0];
+    return top && top.n >= 2 ? { lure: top.label, n: top.n, of: close.length } : null;
+  }
   function personalLine() {
-    var cs = state.catches || [];
-    if (cs.length < 2) return "";
-    var cur = trendLabel(state.weather && state.weather.trendIn);
-    var pool = cur ? cs.filter(function (c) { return c.cond && c.cond.trend === cur; }) : [];
-    var scope = cur ? " when pressure is " + cur.toLowerCase() : "";
-    if (pool.length < 2) { pool = cs; scope = ""; }
-    var top = tally(pool, function (c) { return c.lure; })[0];
-    if (!top || top.n < 2) return "";
-    return '<div class="sub" style="margin-top:8px"><b style="color:var(--accent)">Your log:</b> ' + top.n + " catches on " + esc(top.label) + esc(scope) + ".</div>";
+    var p = learnedPick(); if (!p) return "";
+    return '<div class="yourpick"><b>Your log says:</b> ' + esc(p.lure) + ". " + p.n + " of the " + p.of +
+      " fish you logged in conditions like today came on it.</div>";
   }
   function insightsHtml(cs) {
     if (!cs.length) return "";
@@ -1717,7 +2004,24 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   tick(); setInterval(tick, 30000);
   setInterval(function () { if (state.weather) render(); }, 5 * 60000);
 
+  // ---------- tabs ----------
+  function showTab(name, noScroll) {
+    ["today", "log", "spots"].forEach(function (n) {
+      $("view-" + n).hidden = n !== name;
+      var b = document.querySelector('.tabbar [data-tab="' + n + '"]'); if (b) b.setAttribute("aria-current", n === name ? "page" : "false");
+    });
+    store("bw.tab", name);
+    if (name === "spots" && map) setTimeout(function () { map.invalidateSize(); updateMap(); }, 30);
+    if (!noScroll) window.scrollTo(0, 0);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".tabbar [data-tab]"), function (b) {
+    b.addEventListener("click", function () { showTab(b.dataset.tab); });
+  });
+  var startTab = (location.hash || "").slice(1);
+  if (["today", "log", "spots"].indexOf(startTab) < 0) startTab = store("bw.tab") || "today";
+
   initMap();
+  showTab(startTab, true);
   loadCatches();
   if (state.spot) loadAll(); else locate(true);
 })();
