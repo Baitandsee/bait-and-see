@@ -1169,7 +1169,7 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       waterF: Math.round(wt.f), waterSrc: wt.src, clarity: state.clarity,
       moon: a ? phaseName(a.moonPhase) : null, solunar: win ? win.kind + " window" : (a ? "Outside feeding windows" : null),
       tide: tide, flowCfs: r && r.flowCfs != null ? Math.round(r.flowCfs) : null,
-      score: biteScore().score, sample: !!(w.sample || (r && r.sample) || (t && t.sample))
+      at: Date.now(), score: biteScore().score, sample: !!(w.sample || (r && r.sample) || (t && t.sample))
     };
   }
   function condSummary(k) {
@@ -1276,7 +1276,99 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   function num(v) { var n = parseFloat(v); return isNaN(n) || n <= 0 ? null : Math.round(n * 100) / 100; }
   function showErr(msg) { var e = $("formErr"); e.textContent = msg; e.hidden = !msg; }
 
-  var pendingPhoto = null, pendingCond = null, editing = null;
+  var pendingPhoto = null, pendingCond = null, editing = null, pendingCondBase = null, pendingLoc = null, photoNote = "";
+  function readExif(file) {
+    return file.slice(0, 262144).arrayBuffer().then(function (buf) {
+      var v = new DataView(buf), out = {};
+      if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return out;
+      var o = 2;
+      while (o + 10 < v.byteLength) {
+        if (v.getUint8(o) !== 0xFF) break;
+        var mk = v.getUint8(o + 1), len = v.getUint16(o + 2);
+        if (mk === 0xE1 && v.getUint32(o + 4) === 0x45786966) { try { parseTiff(v, o + 10, out); } catch (e) {} break; }
+        if (mk === 0xDA) break;
+        o += 2 + len;
+      }
+      return out;
+    }).catch(function () { return {}; });
+  }
+  function parseTiff(v, t, out) {
+    var le = v.getUint16(t) === 0x4949;
+    function u16(p) { return v.getUint16(p, le); }
+    function u32(p) { return v.getUint32(p, le); }
+    function ifd(p, cb) {
+      if (!p || t + p + 2 > v.byteLength) return;
+      var n = u16(t + p);
+      for (var i = 0; i < n; i++) { var e = t + p + 2 + i * 12; if (e + 12 > v.byteLength) return; cb(u16(e), u32(e + 4), e + 8); }
+    }
+    function str(off, cnt) { var s = ""; for (var i = 0; i < cnt - 1 && t + off + i < v.byteLength; i++) s += String.fromCharCode(v.getUint8(t + off + i)); return s; }
+    function dms(off) { var a = []; for (var i = 0; i < 3; i++) { var d = u32(t + off + i * 8 + 4); a.push(d ? u32(t + off + i * 8) / d : 0); } return a[0] + a[1] / 60 + a[2] / 3600; }
+    var exifP = 0, gpsP = 0, g = {};
+    ifd(u32(t + 4), function (tag, cnt, vo) {
+      if (tag === 0x8769) exifP = u32(vo);
+      if (tag === 0x8825) gpsP = u32(vo);
+      if (tag === 0x0132 && !out.dt) out.dt = str(u32(vo), cnt);
+    });
+    ifd(exifP, function (tag, cnt, vo) {
+      if (tag === 0x9003) out.dt = str(u32(vo), cnt);
+      if (tag === 0x9011) out.tz = str(u32(vo), cnt);
+    });
+    ifd(gpsP, function (tag, cnt, vo) {
+      if (tag === 1 || tag === 3) g[tag] = String.fromCharCode(v.getUint8(vo));
+      if ((tag === 2 || tag === 4) && cnt === 3) g[tag] = dms(u32(vo));
+    });
+    if (g[2] != null && g[4] != null && (g[2] || g[4])) { out.lat = g[2] * (g[1] === "S" ? -1 : 1); out.lon = g[4] * (g[3] === "W" ? -1 : 1); }
+  }
+  function exifDate(dt, tz) {
+    var m = /^(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)(?::(\d\d))?/.exec(dt || "");
+    if (!m) return null;
+    var d = tz && /^[+-]\d\d:\d\d$/.test(tz)
+      ? new Date(m[1] + "-" + m[2] + "-" + m[3] + "T" + m[4] + ":" + m[5] + ":" + (m[6] || "00") + tz)
+      : new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+    return isNaN(d.getTime()) || d.getFullYear() < 2000 || d.getTime() > Date.now() + 864e5 ? null : d;
+  }
+  function astroAt(lat, lon, t) {
+    if (!window.SunCalc) return null;
+    var day = new Date(t); day.setHours(0, 0, 0, 0);
+    var ill = SunCalc.getMoonIllumination(t), mt = SunCalc.getMoonTimes(day, lat, lon), hi = null, lo = null;
+    for (var m = 0; m <= 1440; m += 5) {
+      var x = new Date(day.getTime() + m * 60e3), alt = SunCalc.getMoonPosition(x, lat, lon).altitude;
+      if (!hi || alt > hi.a) hi = { a: alt, t: x };
+      if (!lo || alt < lo.a) lo = { a: alt, t: x };
+    }
+    var hit = null;
+    [[hi && hi.t, 60, "Major"], [lo && lo.t, 60, "Major"], [mt.rise, 30, "Minor"], [mt.set, 30, "Minor"]].forEach(function (z) {
+      if (z[0] && Math.abs(t - z[0]) <= z[1] * 60e3 && hit !== "Major") hit = z[2];
+    });
+    return { moon: phaseName(ill.phase), solunar: hit ? hit + " window" : "Outside feeding windows" };
+  }
+  function locName(l) {
+    var s = state.spot || DEFAULT_SPOT;
+    return s.name && miles(l.lat, l.lon, s.lat, s.lon) < 3 ? s.name : "Near " + l.lat.toFixed(3) + ", " + l.lon.toFixed(3);
+  }
+  function applyPhotoMeta(meta) {
+    var bits = [], d = exifDate(meta.dt, meta.tz);
+    if (d) { $("fTime").value = localInput(d); bits.push("time"); }
+    if (meta.lat != null && Math.abs(meta.lat) <= 90 && Math.abs(meta.lon) <= 180) { pendingLoc = { lat: meta.lat, lon: meta.lon }; bits.push("location"); }
+    photoNote = bits.length ? "Filled in the " + bits.join(" and ") + " from your photo." : "This photo doesn't have a time or location saved in it.";
+    refreshCond();
+  }
+  function refreshCond() {
+    var t = new Date($("fTime").value); if (isNaN(t.getTime())) t = new Date();
+    var k = Object.assign({}, pendingCondBase || {});
+    var loc = pendingLoc || (editing && editing.lat != null ? { lat: editing.lat, lon: editing.lon } : (state.spot || DEFAULT_SPOT));
+    var a = astroAt(loc.lat, loc.lon, t);
+    if (a) { k.moon = a.moon; k.solunar = a.solunar; }
+    var tt = state.tide && state.tide.events && tideAt(state.tide.events, t);
+    if (tt) k.tide = tt.next.type === "H" ? "Rising" : "Falling";
+    pendingCond = k;
+    var gap = Math.abs(t - (k.at || (editing ? editing.time : Date.now()))) > 2 * 3600e3;
+    var name = pendingLoc ? locName(pendingLoc) : editing ? editing.spotName : (state.spot || DEFAULT_SPOT).name;
+    $("condBox").innerHTML = "<b>" + (editing ? "Conditions for this catch:" : "Saved with this catch:") + "</b> " +
+      esc((name ? name + ", " : "") + condSummary(k)) + (k.sample ? " <b>(sample data)</b>" : "") +
+      (gap ? "<br>Moon, feeding window and tide match the catch time. Weather and water are from when it was logged." : "") +
+      (photoNote ? "<br>" + esc(photoNote) : "") + "<br>Your spot stays private on this phone.";
+  }
   function setPhotoPreview(b) {
     var p = $("photoPrev"); if (p.dataset.u) { URL.revokeObjectURL(p.dataset.u); delete p.dataset.u; }
     if (b) { var u = URL.createObjectURL(b); p.src = u; p.dataset.u = u; p.hidden = false; } else { p.hidden = true; p.removeAttribute("src"); }
@@ -1305,9 +1397,8 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       spot = state.spot || DEFAULT_SPOT;
     }
     setPhotoPreview(pendingPhoto);
-    $("condBox").innerHTML = "<b>" + (editing ? "Conditions saved when you logged it:" : "Saved with this catch:") + "</b> " +
-      esc((spot.name ? spot.name + ", " : "") + condSummary(pendingCond)) +
-      (pendingCond.sample ? " <b>(sample data)</b>" : "") + "<br>Your spot stays private on this phone.";
+    pendingCondBase = pendingCond; pendingLoc = null; photoNote = "";
+    refreshCond();
     var d = $("catchDialog");
     if (d.showModal) d.showModal(); else d.setAttribute("open", "");
   }
@@ -1322,8 +1413,9 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
       id: was ? was.id : Date.now().toString(36) + Math.random().toString(36).slice(2, 7), time: t.getTime(),
       species: $("fSpecies").value, lengthIn: num(len), weightLb: num(wt),
       lure: $("fLure").value.trim(), color: $("fColor").value.trim(), notes: $("fNotes").value.trim(),
-      lat: was ? was.lat : spot.lat, lon: was ? was.lon : spot.lon, spotName: was ? was.spotName : (spot.name || null),
-      cond: was ? was.cond : (pendingCond || snapshot()), photo: pendingPhoto
+      lat: pendingLoc ? pendingLoc.lat : was ? was.lat : spot.lat, lon: pendingLoc ? pendingLoc.lon : was ? was.lon : spot.lon,
+      spotName: pendingLoc ? locName(pendingLoc) : was ? was.spotName : (spot.name || null),
+      cond: pendingCond || (was ? was.cond : snapshot()), photo: pendingPhoto
     };
     var btn = $("saveCatch"); btn.disabled = true;
     DB.put(c).then(function () {
@@ -1380,14 +1472,16 @@ dialog.sheet::backdrop { background: rgba(8, 16, 18, .6); }
   $("logBtn").addEventListener("click", openCatch);
   $("cancelCatch").addEventListener("click", closeCatch);
   $("removePhoto").addEventListener("click", function () { pendingPhoto = null; setPhotoPreview(null); });
+  $("fTime").addEventListener("change", refreshCond);
   $("catchForm").addEventListener("submit", saveCatch);
   $("exportBtn").addEventListener("click", exportLog);
   $("importInput").addEventListener("change", importLog);
   $("photoInput").addEventListener("change", function (e) {
     var f = e.target.files && e.target.files[0]; if (!f) return;
     $("photoLabel").textContent = "Loading…";
-    compress(f).then(function (b) {
-      if (b) { pendingPhoto = b; setPhotoPreview(b); showErr(""); }
+    Promise.all([compress(f), readExif(f)]).then(function (res) {
+      var b = res[0];
+      if (b) { pendingPhoto = b; setPhotoPreview(b); showErr(""); applyPhotoMeta(res[1]); }
       else { $("photoLabel").textContent = pendingPhoto ? "Change photo" : "Add photo"; showErr("That photo couldn't be read. Try a different one."); }
     });
   });
