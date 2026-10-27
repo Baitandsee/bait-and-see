@@ -1,6 +1,10 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 </head><body>
 <title>Bait &amp; See</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -330,6 +334,12 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
 .id-result ul { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 3px; }
 .id-nav { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 
+/* Pro purchase box */
+.buy { margin-top: 12px; display: grid; gap: 10px; }
+.buy-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.buy .btn.primary { min-height: 44px; }
+.buy .sub b { color: var(--ink); }
+
 .foot { color: var(--muted); font-size: 12.5px; display: grid; gap: 4px; }
 .foot a { color: var(--water); }
 .skeleton { color: var(--muted); }
@@ -457,7 +467,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   <section class="card" aria-labelledby="planH">
     <div class="card-head">
       <h2 class="label" id="planH">Free and Pro</h2>
-      <label class="switch" for="proToggle"><input type="checkbox" id="proToggle">Preview Pro</label>
+      <label class="switch" for="proToggle" id="proPreview"><input type="checkbox" id="proToggle">Preview Pro</label>
     </div>
     <div class="plan">
       <div>
@@ -485,6 +495,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
         </ul>
       </div>
     </div>
+    <div class="buy" id="buyBox"></div>
   </section>
 
   </div>
@@ -534,6 +545,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   <footer class="foot">
     <div>Data: National Weather Service, USGS Water Data, NOAA Tides &amp; Currents, OpenStreetMap. Sun and moon times are calculated on your phone.</div>
     <div id="regsLine">Check <a id="regsLink" href="https://myfwc.com/fishing/" target="_blank" rel="noopener">Florida fishing regulations (FWC)</a> before you go.</div>
+    <div><a href="privacy.html" target="_blank" rel="noopener">Privacy policy</a></div>
   </footer>
 </div>
 
@@ -650,6 +662,8 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     return fetch(url, { headers: headers || {}, signal: ctrl.signal }).then(function (r) {
       clearTimeout(t);
       if (!r.ok) throw new Error("HTTP " + r.status);
+      var saved = r.headers.get("X-BS-Cached");
+      if (saved) { var ms = +saved || Date.now(); state.cachedAt = state.cachedAt ? Math.min(state.cachedAt, ms) : ms; }
       return r.json();
     }, function (e) { clearTimeout(t); throw e; });
   }
@@ -1034,10 +1048,17 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     if (w && w.sample) samples.push("weather");
     if (r && r.sample) samples.push("river");
     if (t && t.sample) samples.push("tides");
-    var note = $("sampleNote");
+    var note = $("sampleNote"), offline = navigator.onLine === false;
     if (samples.length) {
       note.hidden = false;
-      note.innerHTML = "<b>Sample data:</b> " + samples.join(", ") + ". Live data couldn't load here, so you're seeing realistic examples. It loads live once the app runs on its own web address.";
+      note.innerHTML = offline
+        ? "<b>You're offline.</b> Nothing is saved for this spot yet, so you're seeing sample " + samples.join(", ") + ". Live conditions load when you have signal."
+        : "<b>Sample data:</b> " + samples.join(", ") + ". Live data couldn't load here, so you're seeing realistic examples. It loads live once the app runs on its own web address.";
+    } else if (state.cachedAt) {
+      note.hidden = false;
+      note.innerHTML = "<b>No signal:</b> showing conditions saved " +
+        esc(new Date(state.cachedAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })) +
+        ". They'll update when you're back online.";
     } else note.hidden = true;
 
     // weather
@@ -1130,6 +1151,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       : lockedRow("Retrieve tips and backup lure") + (learnedPick() ? lockedRow("Your log has a lure pick for conditions like today") : "");
 
     renderRegs();
+    renderBuy();
     $("timelineBox").innerHTML = timelineHtml();
     renderOutlook();
     noteSpotScore(b.score);
@@ -1384,6 +1406,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   var loadId = 0;
   function loadAll() {
     var id = ++loadId, s = state.spot || DEFAULT_SPOT;
+    state.cachedAt = null;
     state.astro = computeAstro(s.lat, s.lon);
     $("verdict").textContent = "Reading the water…";
     Promise.allSettled([loadWeather(s.lat, s.lon), loadRiver(s.lat, s.lon), loadTide(s.lat, s.lon)]).then(function (res) {
@@ -2027,7 +2050,123 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     render();
   });
   $("proToggle").checked = state.pro;
-  $("proToggle").addEventListener("change", function (e) { state.pro = e.target.checked; store("bw.pro", state.pro); render(); });
+  $("proToggle").addEventListener("change", function (e) {
+    if (billing.mode === "play") return;
+    state.pro = e.target.checked; store("bw.pro", state.pro); proChanged();
+  });
+
+  // ---------- Pro subscription (Google Play Billing) ----------
+  // In the Android app from Google Play, Pro is bought through Google Play Billing (Digital Goods API).
+  // On the web and iPhone there's no store billing yet, so "Preview Pro" stays for testers.
+  var BILLING = {
+    products: ["pro_monthly", "pro_yearly"],
+    // The Cloudflare Worker that checks and acknowledges purchases (server/billing-worker.js).
+    // Added on launch day. Without it, purchases work in testing but Google refunds them after 3 days.
+    verifyUrl: "",
+    packageName: "com.baitandsee.app"
+  };
+  var billing = { mode: "web", svc: null, prices: {}, busy: false, msg: "" };
+  function entActive(e) { return !!(e && e.active && (!e.until || e.until > Date.now())); }
+  function setEnt(e) { store("bw.ent", e); var was = state.pro; state.pro = entActive(e); if (was !== state.pro) proChanged(); else renderBuy(); }
+  function proChanged() { if (state.weather) render(); else { renderBuy(); renderSpots(); renderLog(); } }
+  function verifyPurchase(token, sku) {
+    if (!BILLING.verifyUrl) return Promise.resolve({ active: true, expiry: null, unverified: true });
+    return fetch(BILLING.verifyUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: token, sku: sku }) })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+  function entFrom(results) {
+    var ok = results.filter(function (x) { return x && x.active; });
+    if (!ok.length) return null;
+    var until = Math.max.apply(null, ok.map(function (x) { return x.expiry || Date.now() + 3 * 864e5; }));
+    return { active: true, until: until, checked: Date.now() };
+  }
+  function checkPurchases(userAsked) {
+    if (!billing.svc) return Promise.resolve();
+    if (userAsked) { billing.busy = true; billing.msg = ""; renderBuy(); }
+    return billing.svc.listPurchases().then(function (list) {
+      var mine = (list || []).filter(function (x) { return BILLING.products.indexOf(x.itemId) >= 0; });
+      if (!mine.length) { setEnt({ active: false, checked: Date.now() }); if (userAsked) billing.msg = "No Pro subscription found on this Google account."; return; }
+      return Promise.all(mine.map(function (x) { return verifyPurchase(x.purchaseToken, x.itemId).catch(function () { return null; }); })).then(function (res) {
+        var e = entFrom(res);
+        if (e) { setEnt(e); if (userAsked) billing.msg = "Pro restored. You're all set."; }
+        else if (res.every(function (x) { return x; })) { setEnt({ active: false, checked: Date.now() }); if (userAsked) billing.msg = "That subscription has ended."; }
+        else if (userAsked) billing.msg = "Couldn't check your subscription right now. Try again when you have signal.";
+      });
+    }).catch(function () {
+      if (userAsked) billing.msg = "Couldn't reach Google Play. Try again in a minute.";
+    }).finally(function () { billing.busy = false; renderBuy(); });
+  }
+  function buyPro(sku) {
+    if (billing.busy) return;
+    var req;
+    try {
+      req = new PaymentRequest([{ supportedMethods: "https://play.google.com/billing", data: { sku: sku } }],
+        { total: { label: "Total", amount: { currency: "USD", value: "0" } } });
+    } catch (e) { billing.msg = "Purchases aren't available on this device."; renderBuy(); return; }
+    billing.busy = true; billing.msg = ""; renderBuy();
+    req.show().then(function (resp) {
+      var token = resp.details && resp.details.purchaseToken;
+      return verifyPurchase(token, sku).then(function (v) {
+        var e = entFrom([v]);
+        if (e) { setEnt(e); billing.msg = "Welcome to Pro! Tight lines."; return resp.complete("success"); }
+        billing.msg = "Google didn't confirm the purchase. If you were charged, tap Restore purchase.";
+        return resp.complete("fail");
+      }, function () {
+        billing.msg = "Your purchase went through, but we couldn't confirm it yet. Tap Restore purchase when you have signal.";
+        return resp.complete("unknown");
+      });
+    }).catch(function (e) {
+      if (!(e && e.name === "AbortError")) billing.msg = "The purchase didn't go through. You weren't charged.";
+    }).finally(function () { billing.busy = false; renderBuy(); });
+  }
+  function planName(sku) { return /year/.test(sku) ? "Yearly" : "Monthly"; }
+  function renderBuy() {
+    var box = $("buyBox"); if (!box) return;
+    $("proPreview").hidden = billing.mode === "play";
+    $("proToggle").checked = state.pro;
+    var msg = billing.msg ? '<div class="sub" role="status"><b>' + esc(billing.msg) + "</b></div>" : "";
+    if (billing.mode !== "play") {
+      box.innerHTML = '<div class="sub">Pro subscriptions open when Bait &amp; See launches on Google Play. Until then, use Preview Pro to try everything.</div>';
+      return;
+    }
+    if (state.pro) {
+      box.innerHTML = '<div class="sub"><b>You\'re on Pro.</b> Thanks for supporting Bait &amp; See.</div>' +
+        '<div class="buy-row"><a class="link-btn" target="_blank" rel="noopener" href="https://play.google.com/store/account/subscriptions?package=' +
+        encodeURIComponent(BILLING.packageName) + '">Manage subscription</a></div>' + msg;
+      return;
+    }
+    box.innerHTML = '<div class="buy-row">' + BILLING.products.map(function (sku) {
+      var pr = billing.prices[sku];
+      return '<button type="button" class="btn primary" data-buy="' + esc(sku) + '"' + (billing.busy ? " disabled" : "") + ">" +
+        "Go Pro " + planName(sku).toLowerCase() + (pr ? " · " + esc(pr) : "") + "</button>";
+    }).join("") + "</div>" +
+      '<div class="buy-row"><button type="button" class="link-btn" data-buy="restore"' + (billing.busy ? " disabled" : "") + '>Restore purchase</button>' +
+      '<span class="sub">Billed through Google Play. Cancel anytime in Play Store subscriptions.</span></div>' + msg;
+  }
+  $("buyBox").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-buy]"); if (!b || billing.busy) return;
+    if (b.dataset.buy === "restore") checkPurchases(true); else buyPro(b.dataset.buy);
+  });
+  function initBilling() {
+    renderBuy();
+    if (!("getDigitalGoodsService" in window)) return;
+    window.getDigitalGoodsService("https://play.google.com/billing").then(function (svc) {
+      if (!svc) return;
+      billing.mode = "play"; billing.svc = svc;
+      state.pro = entActive(store("bw.ent"));
+      proChanged();
+      svc.getDetails(BILLING.products).then(function (items) {
+        (items || []).forEach(function (it) {
+          try {
+            var per = /Y/.test(it.subscriptionPeriod || "") ? "/yr" : /M/.test(it.subscriptionPeriod || "") ? "/mo" : "";
+            billing.prices[it.itemId] = new Intl.NumberFormat(navigator.language, { style: "currency", currency: it.price.currency }).format(it.price.value) + per;
+          } catch (er) {}
+        });
+        renderBuy();
+      }).catch(function () {});
+      checkPurchases(false);
+    }).catch(function () {});
+  }
   $("locBtn").addEventListener("click", function () { locate(false); });
 
   function tick() { $("clock").textContent = "· " + new Date().toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); }
@@ -2205,6 +2344,13 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   showTab(startTab, true);
   loadCatches();
   if (state.spot) loadAll(); else locate(true);
+  initBilling();
+
+  // Offline support: only on the app's own web address (not in previews).
+  try {
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost") &&
+        !/claude|anthropic/.test(location.hostname)) navigator.serviceWorker.register("sw.js").catch(function () {});
+  } catch (e) {}
 })();
 </script>
 
