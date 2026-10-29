@@ -182,7 +182,9 @@ button, input { font: inherit; color: inherit; }
 .lure-why { font-size: 14.5px; max-width: 60ch; }
 .where-row { display: grid; gap: 6px; margin-top: 12px; }
 .where-row .label { font-size: 12.5px; }
-#whereSeg { border-radius: 16px; display: flex; }
+#whereSeg, #coverSeg { border-radius: 16px; display: flex; }
+.lure-spot p { margin: 0; }
+.lure-spot p + p { margin-top: 6px; }
 .lure-spot { font-size: 14px; background: var(--water-soft); border-radius: 10px; padding: 8px 10px; max-width: 60ch; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 14.5px; }
 .kv dt { color: var(--muted); }
@@ -413,15 +415,29 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       </label>
     </div>
     <div class="where-row">
-      <span class="label" id="whereH">Where are you fishing?</span>
+      <span class="label" id="whereH">Fishing from</span>
       <div class="seg" role="group" aria-labelledby="whereH" id="whereSeg">
         <button type="button" data-v="any" aria-pressed="true">Anywhere</button>
         <button type="button" data-v="bank" aria-pressed="false">Bank</button>
         <button type="button" data-v="dock" aria-pressed="false">Dock</button>
-        <button type="button" data-v="grass" aria-pressed="false">Grass beds</button>
         <button type="button" data-v="pier" aria-pressed="false">Pier or bridge</button>
         <button type="button" data-v="surf" aria-pressed="false">Surf</button>
         <button type="button" data-v="boat" aria-pressed="false">Boat or kayak</button>
+      </div>
+    </div>
+    <div class="where-row" id="coverRow">
+      <span class="label" id="coverH">What's around you</span>
+      <div class="seg" role="group" aria-labelledby="coverH" id="coverSeg">
+        <button type="button" data-v="any" aria-pressed="true">Not sure</button>
+        <button type="button" data-v="grass" aria-pressed="false">Grass</button>
+        <button type="button" data-v="pads" aria-pressed="false">Lily pads</button>
+        <button type="button" data-v="wood" aria-pressed="false">Wood</button>
+        <button type="button" data-v="mangroves" aria-pressed="false">Mangroves</button>
+        <button type="button" data-v="oysters" aria-pressed="false">Oysters</button>
+        <button type="button" data-v="rocks" aria-pressed="false">Rocks</button>
+        <button type="button" data-v="seawall" aria-pressed="false">Seawall</button>
+        <button type="button" data-v="current" aria-pressed="false">Current</button>
+        <button type="button" data-v="open" aria-pressed="false">Open water</button>
       </div>
     </div>
     <div class="lure">
@@ -694,6 +710,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     species: store("bw.species") || "bass",
     clarity: store("bw.clarity") || "stained",
     where: store("bw.where") || "any",
+    cover: store("bw.cover") || "any",
     pro: !!store("bw.pro"),
     wtOverride: null,
     catches: null,
@@ -1000,54 +1017,124 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   function biteScore() { return scoreFor(new Date(), nowCtx()); }
 
   // ---------- the brains: lure picker ----------
-  // Where you're fishing from changes what you can reach, so it can swap the pick and adds a spot tip.
-  var WHERE_NAMES = { bank: "the bank", dock: "a dock", grass: "grass beds", pier: "a pier or bridge", surf: "the surf", boat: "a boat or kayak" };
+  // Where you fish from (bank, dock, pier...) and what's around you (grass, wood, mangroves...)
+  // can swap the pick and each adds a short tip.
+  var WHERE_NAMES = { bank: "the bank", dock: "a dock", pier: "a pier or bridge", surf: "the surf", boat: "a boat or kayak", grass: "grass beds" };
+  var COVER_NAMES = { grass: "grass", pads: "lily pads", wood: "wood", rocks: "rocks", current: "current", mangroves: "mangroves", oysters: "oyster bars", seawall: "a seawall", open: "open water" };
+  var COVER_FRESH = ["grass", "pads", "wood", "rocks", "current", "open"], COVER_SALT = ["grass", "mangroves", "oysters", "rocks", "seawall", "current", "open"];
+  if (state.where === "grass") { state.where = "any"; store("bw.where", "any"); if (!state.cover || state.cover === "any") { state.cover = "grass"; store("bw.cover", "grass"); } }
   function whereFor() {
     var wh = state.where || "any";
     return state.species === "bass" && (wh === "pier" || wh === "surf") ? "any" : wh;
   }
-  function spotLure(L) {
-    var wh = whereFor(); if (wh === "any") return L;
-    var wt = waterTemp().f, cl = state.clarity, low = lowLightNow(), w = state.weather || {}, month = new Date().getMonth() + 1;
-    var n = L.name, M = Object.assign({}, L), swap = null;
-    var soft = { clear: "Green pumpkin", stained: "Junebug", muddy: "Black/blue" }[cl];
-    var ic = { clear: "Natural shrimp or glow", stained: "Root beer/chartreuse", muddy: "Dark purple or gold" }[cl];
+  function coverFor() {
+    var cv = state.cover || "any";
+    if (whereFor() === "surf") return "any";
+    return (state.species === "bass" ? COVER_FRESH : COVER_SALT).indexOf(cv) >= 0 ? cv : "any";
+  }
+  function fromSwap(wh, x) {
+    var M = { tip: null, L: null };
     if (state.species === "bass") {
       if (wh === "dock") {
-        if (wt < 50) swap = { name: "Jig with craw trailer", color: soft, why: "Cold bass tuck tight to dock posts at the deep end of the dock.", retrieve: "Pitch it to the pilings and let it fall straight down. Hop it once, then let it sit.", backup: "Drop shot" };
-        else if (!(low && wt >= 72)) swap = { name: "Wacky-rigged stick worm, skipped", color: soft, why: "Bass sit in the shade under docks, and a skipped stick worm reaches the back corners.", retrieve: "Skip it as far under the dock as you can, let it sink on slack line, then barely twitch it.", backup: "Texas-rigged creature bait" };
+        if (x.wt < 50) M.L = { name: "Jig with craw trailer", color: x.soft, why: "Cold bass tuck tight to dock posts at the deep end of the dock.", retrieve: "Pitch it to the pilings and let it fall straight down. Hop it once, then let it sit.", backup: "Drop shot" };
+        else if (!(x.low && x.wt >= 72)) M.L = { name: "Wacky-rigged stick worm, skipped", color: x.soft, why: "Bass sit in the shade under docks, and a skipped stick worm reaches the back corners.", retrieve: "Skip it as far under the dock as you can, let it sink on slack line, then barely twitch it.", backup: "Texas-rigged creature bait" };
         M.tip = "Work the shady side first. Docks with deep water under them hold the most fish.";
-      } else if (wh === "grass") {
-        var exposed = /crank|jerkbait|spinnerbait|shaky|football|carolina|blade|deep/i.test(n);
-        if (wt >= 72 && (low || w.skyKind === "cloudy")) swap = { name: "Hollow-body frog", color: cl === "clear" ? "Natural green" : cl === "stained" ? "White" : "Black", why: "Low light gets bass hunting on top of the grass, and a frog won't hang up.", retrieve: "Walk it over the mats and pause at every hole. Count to two before the hookset.", backup: "Buzzbait" };
-        else if (wt >= 72) swap = { name: "Punch rig (Texas-rigged creature, 1 oz weight)", color: soft, why: "Hot sun puts bass under thick mats, and only a heavy weight gets through.", retrieve: "Drop it into holes and thick spots, let it punch through, then jig it 2 or 3 times.", backup: "Hollow-body frog" };
-        else if (exposed && wt >= 55) swap = { name: "Lipless crankbait, ripped through grass", color: cl === "clear" ? "Chrome/blue" : "Red craw", why: "Bass sit just above the grass, and ripping a lipless free of it triggers strikes.", retrieve: "Let it tick the grass tops, then rip it free. Most bites come right after the rip.", backup: "Swim jig" };
-        else if (exposed) swap = { name: "Swim jig", color: soft, why: "Cold bass hold on the grass edges, and a weedless swim jig comes through clean.", retrieve: "Slow, steady retrieve along the outside edge of the grass.", backup: "Texas-rigged creature bait" };
-        M.tip = "Fish the edges, holes and points in the grass. Weedless baits save you from cleaning grass off every cast.";
       } else if (wh === "bank") {
-        if (/carolina|deep-diving|shaky head/i.test(n)) swap = { name: "Texas-rigged worm", color: soft, why: "From the bank you can't reach offshore spots, so work the first drop-off.", retrieve: "Cast out to the drop-off and crawl it back up the slope.", backup: "Squarebill crankbait" };
+        if (/carolina|deep-diving|shaky head/i.test(x.n)) M.L = { name: "Texas-rigged worm", color: x.soft, why: "From the bank you can't reach offshore spots, so work the first drop-off.", retrieve: "Cast out to the drop-off and crawl it back up the slope.", backup: "Squarebill crankbait" };
         M.tip = "Cast along the bank, not straight out. Bass cruise the shoreline, and your bait stays in front of them longer.";
       } else if (wh === "boat") M.tip = "Use the boat to reach what bank anglers can't: offshore points, ledges and the outside grass line.";
     } else {
       if (wh === "dock") {
-        if (wt < 60) swap = { name: "Fresh shrimp on a knocker rig", color: "Natural", why: "Cool water brings sheepshead and black drum to dock pilings to feed on barnacles.", retrieve: "Drop it straight down next to the pilings. Keep the line tight and set fast on the first tap.", backup: "Fiddler crab on a small jig head" };
-        else if (!low) swap = { name: "Paddle tail, skipped under docks", color: ic, why: "Snook, reds and mangrove snapper hide in the shade under docks.", retrieve: "Skip it under the dock, let it sink, then swim it out slowly past the pilings.", backup: "Live shrimp under the dock" };
+        if (x.wt < 60) M.L = { name: "Fresh shrimp on a knocker rig", color: "Natural", why: "Cool water brings sheepshead and black drum to dock pilings to feed on barnacles.", retrieve: "Drop it straight down next to the pilings. Keep the line tight and set fast on the first tap.", backup: "Fiddler crab on a small jig head" };
+        else if (!x.low) M.L = { name: "Paddle tail, skipped under docks", color: x.ic, why: "Snook, reds and mangrove snapper hide in the shade under docks.", retrieve: "Skip it under the dock, let it sink, then swim it out slowly past the pilings.", backup: "Live shrimp under the dock" };
         M.tip = "Dock lights at night pull in bait, and snook and trout follow. By day, fish the shady side on moving water.";
       } else if (wh === "pier") {
-        if (wt >= 68 && month >= 3 && month <= 11) swap = { name: "Gotcha plug", color: "White/red or chartreuse", why: "Warm water brings Spanish mackerel, bluefish and ladyfish to piers and bridges.", retrieve: "Cast out, let it sink a few seconds, then reel fast while jerking the rod hard. Speed matters.", backup: "Silver spoon" };
-        else swap = { name: "Fresh shrimp on a knocker rig", color: "Natural", why: "Cooler water pulls sheepshead, black drum and redfish to the pilings.", retrieve: "Drop it right next to the pilings and keep a tight line.", backup: "1/2 oz bucktail jig" };
+        if (x.wt >= 68 && x.month >= 3 && x.month <= 11) M.L = { name: "Gotcha plug", color: "White/red or chartreuse", why: "Warm water brings Spanish mackerel, bluefish and ladyfish to piers and bridges.", retrieve: "Cast out, let it sink a few seconds, then reel fast while jerking the rod hard. Speed matters.", backup: "Silver spoon" };
+        else M.L = { name: "Fresh shrimp on a knocker rig", color: "Natural", why: "Cooler water pulls sheepshead, black drum and redfish to the pilings.", retrieve: "Drop it right next to the pilings and keep a tight line.", backup: "1/2 oz bucktail jig" };
         M.tip = "Fish moving water. Most fish feed on the down-current side of the pilings.";
       } else if (wh === "surf") {
-        if (wt >= 75) swap = { name: "Silver spoon", color: "Silver", why: "Warm surf brings Spanish mackerel, ladyfish and jacks in close, chasing bait.", retrieve: "Cast past the sandbar and reel fast enough to keep it flashing.", backup: "Pompano jig" };
-        else if (wt >= 58) swap = { name: "Pompano jig", color: "Pink or yellow", why: "Pompano, whiting and redfish cruise the trough eating sand fleas.", retrieve: "Bounce it along the bottom in short hops so it kicks up sand.", backup: "Shrimp or sand fleas on a double-drop rig" };
-        else swap = { name: "Shrimp on a double-drop rig", color: "Natural", why: "In cold surf, whiting, pompano and black drum feed slowly on the bottom.", retrieve: "Cast to the first trough and let it sit. Watch the rod tip for taps.", backup: "Fishbites on a double-drop rig" };
+        if (x.wt >= 75) M.L = { name: "Silver spoon", color: "Silver", why: "Warm surf brings Spanish mackerel, ladyfish and jacks in close, chasing bait.", retrieve: "Cast past the sandbar and reel fast enough to keep it flashing.", backup: "Pompano jig" };
+        else if (x.wt >= 58) M.L = { name: "Pompano jig", color: "Pink or yellow", why: "Pompano, whiting and redfish cruise the trough eating sand fleas.", retrieve: "Bounce it along the bottom in short hops so it kicks up sand.", backup: "Shrimp or sand fleas on a double-drop rig" };
+        else M.L = { name: "Shrimp on a double-drop rig", color: "Natural", why: "In cold surf, whiting, pompano and black drum feed slowly on the bottom.", retrieve: "Cast to the first trough and let it sit. Watch the rod tip for taps.", backup: "Fishbites on a double-drop rig" };
         M.tip = "Fish the first trough, the deeper water just past where the waves break. The incoming tide is usually best.";
-      } else if (wh === "grass") M.tip = "Look for sandy potholes in the grass and cast to their edges. Trout and reds wait there to ambush bait.";
-      else if (wh === "bank") M.tip = "From shore, points, oyster bars and creek mouths are your best shot. Fish them on moving water.";
+      } else if (wh === "bank") M.tip = "From shore, points, oyster bars and creek mouths are your best shot. Fish them on moving water.";
       else if (wh === "boat") M.tip = "Drift the flats on moving water and fish the edges of channels and oyster bars.";
     }
-    if (swap) { swap.tip = M.tip; M = swap; }
-    M.where = wh;
+    return M;
+  }
+  function coverSwap(cv, x) {
+    var M = { tip: null, L: null }, exposed = /crank|jerkbait|spinnerbait|shaky|football|carolina|blade|deep/i.test(x.n);
+    if (state.species === "bass") {
+      if (cv === "grass") {
+        if (x.wt >= 72 && (x.low || x.cloudy)) M.L = { name: "Hollow-body frog", color: x.frog, why: "Low light gets bass hunting on top of the grass, and a frog won't hang up.", retrieve: "Walk it over the mats and pause at every hole. Count to two before the hookset.", backup: "Buzzbait" };
+        else if (x.wt >= 72) M.L = { name: "Punch rig (Texas-rigged creature, 1 oz weight)", color: x.soft, why: "Hot sun puts bass under thick mats, and only a heavy weight gets through.", retrieve: "Drop it into holes and thick spots, let it punch through, then jig it 2 or 3 times.", backup: "Hollow-body frog" };
+        else if (exposed && x.wt >= 55) M.L = { name: "Lipless crankbait, ripped through grass", color: x.cl === "clear" ? "Chrome/blue" : "Red craw", why: "Bass sit just above the grass, and ripping a lipless free of it triggers strikes.", retrieve: "Let it tick the grass tops, then rip it free. Most bites come right after the rip.", backup: "Swim jig" };
+        else if (exposed) M.L = { name: "Swim jig", color: x.soft, why: "Cold bass hold on the grass edges, and a weedless swim jig comes through clean.", retrieve: "Slow, steady retrieve along the outside edge of the grass.", backup: "Texas-rigged creature bait" };
+        M.tip = "Fish the edges, holes and points in the grass. Weedless baits save you from cleaning grass off every cast.";
+      } else if (cv === "pads") {
+        if (x.wt >= 70) M.L = { name: "Hollow-body frog", color: x.frog, why: "Bass hide under the pads waiting for frogs and bluegill to pass over.", retrieve: "Hop it from pad to pad and let it sit in open pockets. Count to two before the hookset.", backup: "Weightless stick worm" };
+        else if (x.wt >= 55) M.L = { name: "Weightless stick worm", color: x.soft, why: "A slow-sinking worm drops into the gaps between pads without hanging up.", retrieve: "Cast into open pockets and let it sink on slack line. Watch the line for a twitch.", backup: "Texas-rigged creature bait" };
+        else M.L = { name: "Texas-rigged creature bait", color: x.soft, why: "Cold bass hold on the outside edge of the pads where the water is deeper.", retrieve: "Pitch it to the outer edge and work it slowly along the bottom.", backup: "Jig with craw trailer" };
+        M.tip = "Work the open pockets and the outside edge of the pads. Watch for pads moving, that's a bass under them.";
+      } else if (cv === "wood") {
+        if (x.wt < 50) M.L = { name: "Jig with craw trailer", color: x.soft, why: "Cold bass hug the trunks of laydowns and stumps, and a jig crawls through without snagging.", retrieve: "Crawl it through the branches and let it sit when it bumps wood.", backup: "Texas-rigged creature bait" };
+        else if (exposed || /worm|wacky|ned/i.test(x.n)) M.L = x.active || x.fall
+          ? { name: "Squarebill crankbait", color: x.hard, why: "A squarebill bounces off wood instead of snagging, and the deflection triggers strikes.", retrieve: "Bang it into the wood at medium speed. Pause for a split second after it hits.", backup: "Spinnerbait" }
+          : { name: "Texas-rigged creature bait", color: x.soft, why: "Bass tuck into the shade of laydowns, and a pegged Texas rig comes through clean.", retrieve: "Pitch it into the thickest part of the wood, let it fall, then shake it in place.", backup: "Squarebill crankbait" };
+        M.tip = "Fish each laydown from the shallow end to the deep end. The best fish usually sits on the shady side of the trunk.";
+      } else if (cv === "rocks") {
+        if (x.wt < 50) M.L = { name: "Football jig with craw trailer", color: x.soft, why: "Crawfish hide in the rocks, and cold bass eat them slowly along the bottom.", retrieve: "Drag it over the rocks and let it sit when it ticks one.", backup: "Suspending jerkbait" };
+        else if (x.wt < 68) M.L = { name: "Medium-diving crankbait", color: x.cl === "clear" ? "Natural craw" : "Red craw", why: "Rocks warm up fast, and bass pile onto them hunting crawfish.", retrieve: "Crank it down until it bumps rock, then keep it digging along the bottom.", backup: "Football jig" };
+        M.tip = "Craw colors are hard to beat around rocks. Points and the corners of riprap hold the most fish.";
+      } else if (cv === "current") {
+        if (x.wt < 55) M.L = { name: "Jig with craw trailer", color: x.soft, why: "Cold river bass sit in slack water behind cover, and a jig stays down in the current.", retrieve: "Cast upstream of the cover and let the current roll it into the slack water.", backup: "Texas-rigged craw" };
+        else if (!(x.low && x.wt >= 72)) M.L = { name: "Squarebill crankbait", color: x.hard, why: "Current makes bass ambush bait washing past. A crankbait coming downstream looks like easy food.", retrieve: "Cast upstream and reel a little faster than the current, bumping logs and rocks.", backup: "Inline spinner" };
+        M.tip = "Bass face upstream in the slack water behind logs, rocks and points. Cast up-current and let your bait come to them.";
+      } else if (cv === "open") M.tip = "In open water, look for drop-offs, points and schools of baitfish. Birds and your electronics give them away.";
+    } else {
+      if (cv === "grass") M.tip = "Look for sandy potholes in the grass and cast to their edges. Trout and reds wait there to ambush bait.";
+      else if (cv === "mangroves") {
+        M.L = x.wt >= 60
+          ? { name: "Weedless paddle tail", color: x.ic, why: "Snook, reds and mangrove snapper hide in the roots, and a weedless hook won't snag.", retrieve: "Skip it under the branches, let it sink, then swim it out slowly along the roots.", backup: "Live shrimp, free-lined" }
+          : { name: "Weedless shrimp imitation", color: x.ic, why: "Cold fish sit deep in the roots and won't chase far. A slow shrimp gets eaten.", retrieve: "Skip it in tight and let it sink to the bottom. Hop it once or twice, then let it sit.", backup: "Live shrimp on a small jig head" };
+        M.tip = "Fish the mangroves on a high, falling tide when water is up in the roots. Skip baits as far back as you can.";
+      } else if (cv === "oysters") {
+        M.L = x.wt >= 70 && !x.low
+          ? { name: "Shrimp imitation under a popping cork", color: x.ic, why: "A cork keeps your bait above the shells, where reds and trout are feeding.", retrieve: "Pop the cork over the edges of the bars, then wait 10–15 seconds.", backup: "Gold weedless spoon" }
+          : { name: "Gold weedless spoon", color: "Gold", why: "Reds root around oyster bars, and a weedless spoon comes over the shells without hanging up.", retrieve: "Steady retrieve along the edges and the gaps between the bars.", backup: "Weedless paddle tail" };
+        M.tip = "Fish the edges and the gaps between bars on moving water. Use a fluorocarbon leader, because oysters cut line.";
+      } else if (cv === "rocks") {
+        M.L = x.wt < 65
+          ? { name: "Fresh shrimp on a knocker rig", color: "Natural", why: "Sheepshead, black drum and reds feed on crabs and barnacles on the rocks.", retrieve: "Drop it tight to the rocks and keep the line tight. Set fast on the first tap.", backup: "Fiddler crab on a small jig head" }
+          : { name: "1/2 oz bucktail jig", color: "White", why: "Jetties and rock piles hold reds, snook and jacks hunting bait in the current.", retrieve: "Cast up-current and bounce it along the rocks as the current sweeps it.", backup: "Fresh shrimp on a knocker rig" };
+        M.tip = "Fish tight to the rocks on the down-current side, and expect to lose some tackle.";
+      } else if (cv === "seawall") {
+        if (!x.low) M.L = { name: "Paddle tail along the seawall", color: x.ic, why: "Snook and reds cruise seawalls hunting bait pinned against the wall.", retrieve: "Cast parallel to the wall, a foot or two off it, and swim it back slowly.", backup: "Live shrimp" };
+        M.tip = "Cast parallel to the wall. At night, lights pull in bait, and snook stack up in the shadow line.";
+      } else if (cv === "current") {
+        M.L = { name: "Heavy bucktail jig (1/2–1 oz)", color: "White", why: "Strong current in passes and inlets moves bait, and big fish wait in the eddies.", retrieve: "Cast up-current and let it bounce along the bottom as the current sweeps it.", backup: "Live shrimp on a heavy jig head" };
+        M.tip = "The outgoing tide is usually best. Fish the edges of the current and the eddies behind points.";
+      } else if (cv === "open") M.tip = "Look for diving birds, slicks and nervous water. That's bait, and the fish are under it.";
+    }
+    return M;
+  }
+  function spotLure(L) {
+    var wh = whereFor(), cv = coverFor(); if (wh === "any" && cv === "any") return L;
+    var cl = state.clarity, w = state.weather || {}, month = new Date().getMonth() + 1;
+    var x = { n: L.name, wt: waterTemp().f, cl: cl, low: lowLightNow(), month: month, cloudy: w.skyKind === "cloudy",
+      active: (w.trendIn || 0) <= -0.02 || w.skyKind === "cloudy" || (w.windMph || 0) >= 8, fall: month >= 9 && month <= 11,
+      soft: { clear: "Green pumpkin", stained: "Junebug", muddy: "Black/blue" }[cl],
+      hard: { clear: "Ghost shad", stained: "Chartreuse shad", muddy: "Black/chartreuse" }[cl],
+      ic: { clear: "Natural shrimp or glow", stained: "Root beer/chartreuse", muddy: "Dark purple or gold" }[cl],
+      frog: cl === "clear" ? "Natural green" : cl === "stained" ? "White" : "Black" };
+    var f = wh !== "any" ? fromSwap(wh, x) : { tip: null, L: null }, c = cv !== "any" ? coverSwap(cv, x) : { tip: null, L: null };
+    // Pier and surf decide the lure; otherwise the cover is the more specific clue.
+    var pick = (wh === "pier" || wh === "surf") ? (f.L || c.L) : (c.L || f.L);
+    var M = Object.assign({}, pick || L);
+    M.tips = [];
+    if (f.tip) M.tips.push("<b>From " + esc(WHERE_NAMES[wh]) + ":</b> " + esc(f.tip));
+    if (c.tip) M.tips.push("<b>Around " + esc(COVER_NAMES[cv]) + ":</b> " + esc(c.tip));
+    M.where = wh; M.cover = cv;
     return M;
   }
   function pickLure() { return spotLure(baseLure()); }
@@ -1215,11 +1302,18 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     $("lureName").textContent = L.name;
     $("lureColor").textContent = "Color: " + L.color;
     $("lureWhy").textContent = L.why;
-    $("lureSpot").hidden = !L.tip;
-    $("lureSpot").innerHTML = L.tip ? "<b>Fishing from " + esc(WHERE_NAMES[L.where] || "here") + ":</b> " + esc(L.tip) : "";
+    var tips = L.tips || [];
+    $("lureSpot").hidden = !tips.length;
+    $("lureSpot").innerHTML = tips.map(function (t) { return "<p>" + t + "</p>"; }).join("");
     Array.prototype.forEach.call($("whereSeg").querySelectorAll("button"), function (b) {
       b.hidden = state.species === "bass" && (b.dataset.v === "pier" || b.dataset.v === "surf");
       b.setAttribute("aria-pressed", String(b.dataset.v === whereFor()));
+    });
+    var covers = state.species === "bass" ? COVER_FRESH : COVER_SALT;
+    $("coverRow").hidden = whereFor() === "surf";
+    Array.prototype.forEach.call($("coverSeg").querySelectorAll("button"), function (b) {
+      b.hidden = b.dataset.v !== "any" && covers.indexOf(b.dataset.v) < 0;
+      b.setAttribute("aria-pressed", String(b.dataset.v === coverFor()));
     });
     $("lureProBox").innerHTML = state.pro
       ? '<dl class="kv"><dt>Retrieve</dt><dd>' + esc(L.retrieve) + "</dd><dt>Backup</dt><dd>" + esc(L.backup) + "</dd></dl>" + personalLine()
@@ -1563,7 +1657,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       airF: w.tempF != null ? Math.round(w.tempF) : null, sky: w.sky || null,
       windMph: w.windMph != null ? Math.round(w.windMph) : null, windDir: w.windDir || null,
       pressureIn: w.pressureIn != null ? Math.round(w.pressureIn * 100) / 100 : null, trend: trendLabel(w.trendIn),
-      waterF: Math.round(wt.f), waterSrc: wt.src, clarity: state.clarity, where: whereFor() !== "any" ? whereFor() : null,
+      waterF: Math.round(wt.f), waterSrc: wt.src, clarity: state.clarity, where: whereFor() !== "any" ? whereFor() : null, cover: coverFor() !== "any" ? coverFor() : null,
       moon: a ? phaseName(a.moonPhase) : null, solunar: win ? win.kind + " window" : (a ? "Outside feeding windows" : null),
       tide: tide, flowCfs: r && r.flowCfs != null ? Math.round(r.flowCfs) : null,
       at: Date.now(), score: biteScore().score, sample: !!(w.sample || (r && r.sample) || (t && t.sample))
@@ -1575,7 +1669,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       k.windMph != null ? k.windMph + " mph " + (k.windDir || "") : "",
       k.pressureIn != null ? k.pressureIn.toFixed(2) + " in" + (k.trend ? " (" + k.trend.toLowerCase() + ")" : "") : "",
       k.waterF != null ? k.waterF + "°F water" + (k.waterSrc === "estimate" ? " (est.)" : "") : "",
-      k.clarity ? k.clarity + " water" : "", k.where ? "from " + (WHERE_NAMES[k.where] || k.where) : "", k.moon || "", k.solunar || "",
+      k.clarity ? k.clarity + " water" : "", k.where ? "from " + (WHERE_NAMES[k.where] || k.where) : "", k.cover ? "around " + (COVER_NAMES[k.cover] || k.cover) : "", k.moon || "", k.solunar || "",
       k.tide ? k.tide.toLowerCase() + " tide" : "", k.flowCfs != null ? k.flowCfs.toLocaleString() + " cfs" : "",
       k.score != null ? "bite score " + k.score : ""
     ].filter(Boolean).join(", ");
@@ -1598,6 +1692,8 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       if (sk && k.sky && skyKind(k.sky) === sk) sc += 1;
       var wh = whereFor();
       if (wh !== "any" && k.where) { if (k.where === wh) sc += 1.5; else sc -= 1.5; }
+      var cv = coverFor();
+      if (cv !== "any" && k.cover) { if (k.cover === cv) sc += 1.5; else sc -= 1; }
       return sc >= 3;
     });
     if (close.length < 2) return null;
@@ -2127,6 +2223,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   wireSeg("speciesSeg", "species");
   wireSeg("claritySeg", "clarity");
   wireSeg("whereSeg", "where");
+  wireSeg("coverSeg", "cover");
   $("wtInput").addEventListener("change", function (e) {
     var v = parseFloat(e.target.value);
     state.wtOverride = isNaN(v) ? null : Math.max(35, Math.min(100, v));
