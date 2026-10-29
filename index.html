@@ -181,6 +181,12 @@ button, input { font: inherit; color: inherit; }
 .lure-color { font-weight: 600; color: var(--accent); }
 .lure-why { font-size: 14.5px; max-width: 60ch; }
 .where-row { display: grid; gap: 6px; margin-top: 12px; }
+.target { display: grid; gap: 6px; flex: 1 1 100%; }
+.target .label { font-size: 12.5px; }
+.target select { font: inherit; font-weight: 600; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-height: 46px; max-width: 100%; }
+.target select:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }
+.kv.how { grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr); margin: 10px 0; }
+.how-best { font-size: 14.5px; background: var(--water-soft); border-radius: 10px; padding: 8px 10px; }
 .where-row .label { font-size: 12.5px; }
 #whereSeg, #coverSeg { border-radius: 16px; display: flex; }
 .lure-spot p { margin: 0; }
@@ -400,10 +406,9 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       <h2 class="label" id="lureH">Lure of the day</h2>
     </div>
     <div class="controls">
-      <div class="seg" role="group" aria-label="Target fish" id="speciesSeg">
-        <button type="button" data-v="bass" aria-pressed="true">Bass</button>
-        <button type="button" data-v="inshore" aria-pressed="false">Inshore salt</button>
-      </div>
+      <label class="target" for="targetSel"><span class="label">Target fish</span>
+        <select id="targetSel"><optgroup label="Freshwater"><option>Any bass</option><option>Largemouth bass</option><option>Spotted bass</option><option>Shoal bass</option><option>Striped bass</option><option>Bluegill / bream</option><option>Crappie</option><option>Catfish</option></optgroup><optgroup label="Saltwater"><option>Any inshore</option><option>Redfish</option><option>Speckled trout</option><option>Snook</option><option>Flounder</option><option>Sheepshead</option><option>Black drum</option><option>Pompano</option><option>Spanish mackerel</option><option>King mackerel</option><option>Bonita (little tunny)</option><option>Tarpon</option><option>Mangrove snapper</option><option>Jack crevalle</option><option>Ladyfish</option><option>Hardhead catfish</option><option>Gafftopsail catfish</option><option>Whiting</option><option>White trout</option><option>Croaker</option><option>Bluefish</option><option>Cobia</option></optgroup></select>
+      </label>
       <div class="seg" role="group" aria-label="Water clarity" id="claritySeg">
         <button type="button" data-v="clear" aria-pressed="false">Clear</button>
         <button type="button" data-v="stained" aria-pressed="true">Stained</button>
@@ -447,6 +452,11 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       <div class="lure-spot" id="lureSpot" hidden></div>
     </div>
     <div id="lureProBox"></div>
+  </section>
+
+  <section class="card" aria-labelledby="howH">
+    <div class="card-head"><h2 class="label" id="howH">How to catch them</h2></div>
+    <div id="howBox"></div>
   </section>
 
   <section class="card" aria-labelledby="olH">
@@ -710,6 +720,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     species: store("bw.species") || "bass",
     clarity: store("bw.clarity") || "stained",
     where: store("bw.where") || "any",
+    target: store("bw.target") || null,
     cover: store("bw.cover") || "any",
     pro: !!store("bw.pro"),
     wtOverride: null,
@@ -1017,6 +1028,134 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   function biteScore() { return scoreFor(new Date(), nowCtx()); }
 
   // ---------- the brains: lure picker ----------
+  // ---------- target fish ----------
+  // how: [where they hold, best time and tide, top baits, rig and tackle, season in Florida]
+  // p: what each fish favors when picking its best time (light: dawn/dusk, tide: moving water, day: midday sun)
+  function LL(name, color, why, retrieve, backup) { return { name: name, color: color, why: why, retrieve: retrieve, backup: backup }; }
+  var TARGETS = {
+    "Any bass": { w: "fresh", any: true, p: { light: 1 }, how: ["Cover and structure: grass edges, docks, laydowns, points and drop-offs.", "Dawn and dusk, cloudy days, and the hours before a front.", "Soft plastics, crankbaits, spinnerbaits and topwater, depending on the season.", "Medium-heavy rod, 12–20 lb line.", "Year-round. Spring spawn and fall feeding are the best stretches."] },
+    "Largemouth bass": { w: "fresh", p: { light: 1 }, how: ["Shallow cover: grass, pads, docks and laydowns. Deeper drop-offs in summer and winter.", "Low light, wind and falling pressure. Midday in the shade when it's hot.", "Texas-rigged worms, frogs, spinnerbaits, chatterbaits, squarebills and live shiners.", "Medium-heavy rod, 15–20 lb fluorocarbon or 50 lb braid around heavy cover.", "Year-round. Best February–April during the spawn and again in fall."] },
+    "Spotted bass": { w: "fresh", p: { light: 1, tide: 0 }, how: ["Rivers and clear reservoirs: rocky banks, current breaks and deeper points.", "Overcast days and moving water. They often school and chase bait.", "Shaky head worms, small swimbaits, crankbaits and Ned rigs.", "Medium spinning rod, 8–12 lb fluorocarbon.", "Year-round, best fall through spring."], lure: function (x) {
+      if (x.wt < 55) return LL("Shaky head worm", x.soft, "Spotted bass hold deeper on rock and current breaks when the water's cold.", "Drag it slowly on the bottom and shake it in place.", "Ned rig");
+      if (x.low && x.wt >= 68) return LL("Walking topwater", x.top, "Spots school up and chase bait on top in low light.", "Walk it fast over points and current seams.", "Small swimbait");
+      return LL("Small paddle-tail swimbait on a jig head", x.hard, "Spots love chasing small baitfish around rocks and current.", "Steady retrieve just off the bottom, bumping rocks.", "Shaky head worm"); } },
+    "Shoal bass": { w: "fresh", p: { light: 1 }, how: ["River shoals and rocky runs, like the Chipola and Apalachicola. Behind boulders in current.", "Moving water. Early and late in summer.", "Small crankbaits, inline spinners, soft-plastic craws and small topwater.", "Medium spinning rod, 8–12 lb line. Wading or a kayak works best.", "Spring through fall. Slower in winter."], lure: function (x) {
+      if (x.wt < 55) return LL("Soft-plastic craw on a light jig head", x.soft, "Cold shoal bass sit tight behind rocks and eat crawfish.", "Cast upstream and let it tumble along the bottom into the slack water.", "Small suspending jerkbait");
+      if (x.low && x.wt >= 68) return LL("Small prop bait or popper", x.top, "Shoal bass blow up on topwater in the shoals at dawn and dusk.", "Work it across seams and eddies with short pops.", "Inline spinner");
+      return LL("Small squarebill crankbait", "Crawfish", "Current pushes food past the rocks, and a small crankbait looks like a fleeing craw.", "Cast upstream and crank it back with the current, bumping rocks.", "Inline spinner"); } },
+    "Striped bass": { w: "fresh", p: { light: 1 }, how: ["Big rivers, tailraces below dams and cool springs in summer. Follow schools of shad.", "Early morning and when the dam is releasing water.", "White bucktail jigs, swimbaits, topwater pencil poppers and live shad.", "Medium-heavy rod, 15–20 lb line.", "Best in the cooler months. In summer they stack up in cool spring water."], lure: function (x) {
+      if (x.low && x.wt >= 60 && x.wt <= 82) return LL("Topwater pencil popper", "Bone or white", "Stripers push shad to the surface in low light.", "Long casts, then fast sweeps so it splashes and spits.", "White bucktail jig");
+      return LL("White bucktail jig with a soft trailer", "White", "Stripers hunt shad, and a white jig looks like one.", "Cast into current and bounce it along the bottom as it swings.", "4–5 inch white swimbait"); } },
+    "Bluegill / bream": { w: "fresh", p: { day: 1 }, how: ["Shallow banks, docks, grass edges and spawning beds (look for light-colored circles in the sand).", "Warm afternoons. Spawning beds around the full moon in spring and summer.", "Red wigglers, crickets, small worms and tiny spinners.", "Ultralight rod, 4–6 lb line, small hook (size 8–10), small bobber.", "Year-round. Bed fishing is best April–August."], lure: function (x) {
+      return LL("Red wigglers or crickets under a small bobber", "Natural", "Bream eat small insects and worms, and a bobber keeps the bait right at their level.", "Set the bait 1–3 feet deep near cover. Set the hook when the bobber goes under.", "Small inline spinner or Beetle Spin"); } },
+    "Crappie": { w: "fresh", p: { light: 1 }, how: ["Brush piles, docks, standing timber and bridge pilings. Shallow in the spring spawn.", "Dawn, dusk and at night under lights.", "Small jigs (1/16–1/8 oz) and live minnows.", "Light spinning rod, 4–8 lb line. Set the hook gently, their mouths tear.", "Best December–March. Shallow spawn as the water hits the low 60s."], lure: function (x) {
+      if (x.wt >= 58 && x.wt <= 68) return LL("1/16 oz jig under a slip float", x.cl === "clear" ? "White or silver" : "Chartreuse", "Crappie move shallow to spawn when the water warms into the 60s.", "Set it 2–4 feet deep along shallow cover and let it sit.", "Live minnow");
+      return LL("Live minnow near brush", "Natural", "Crappie hold tight to brush and timber, and a live minnow gets bit when they're picky.", "Drop it straight into the brush and hold it just above the fish.", "1/16 oz tube jig"); } },
+    "Catfish": { w: "fresh", p: { light: 1 }, how: ["Deep holes, river bends, below dams and near creek mouths.", "Night and the first hours after a rain when the water's rising.", "Cut shad or bream, chicken liver, nightcrawlers and stink bait.", "Medium-heavy rod, 20 lb line, circle hook on a Carolina rig.", "Year-round. Best in warm months."], lure: function (x) {
+      return LL("Cut bait on a Carolina rig", "Natural", "Catfish hunt by smell, and fresh cut bait puts out the most scent.", "Cast to a deep hole or channel edge, let it sit, and let the fish load the rod before reeling.", "Chicken liver or nightcrawlers"); } },
+    "Any inshore": { w: "salt", any: true, p: { tide: 1, light: 1 }, how: ["Grass flats, oyster bars, docks, mangroves and creek mouths.", "Moving tide, especially the first hours of the outgoing. Dawn and dusk.", "Live shrimp, paddle tails, gold spoons and topwater.", "Medium spinning rod, 10–20 lb braid, 20 lb fluorocarbon leader.", "Year-round. Something's always biting inshore."] },
+    "Redfish": { w: "salt", p: { tide: 1, light: 0.5 }, how: ["Oyster bars, grass flats, mangrove shorelines and creek mouths. They push shallow on high tide.", "Moving water, especially the first two hours of the outgoing tide.", "Gold weedless spoons, paddle tails, shrimp under a popping cork, cut mullet and live shrimp.", "Medium spinning rod, 10–20 lb braid, 20–30 lb fluorocarbon leader.", "Year-round. Big schools in the fall."], lure: function (x) {
+      if (x.wt < 60) return LL("Paddle tail on a 1/4 oz jig head", x.ic, "Cold reds pile into deeper holes and creeks.", "Slow hops along the bottom. Let it fall on a tight line.", "Cut mullet on the bottom");
+      if (x.low && x.wt >= 65) return LL("Walking topwater", x.top, "Reds hunt mullet on top in low light.", "Slow walk-the-dog. Wait until you feel weight before setting.", "Gold weedless spoon");
+      return LL("Gold weedless spoon", "Gold", "Flash and thump help reds find it, and it won't snag shells or grass.", "Steady retrieve along shorelines, oyster bars and potholes.", "Live shrimp or cut mullet"); } },
+    "Speckled trout": { w: "salt", p: { light: 1, tide: 0.5 }, how: ["Grass flats 2–6 feet deep, potholes, channel edges. Deep holes and canals in winter.", "Dawn and dusk on moving tide.", "Topwater walkers, soft jerkbaits, paddle tails, shrimp under a popping cork, live shrimp.", "Light-medium spinning rod, 10 lb braid, 15–20 lb fluorocarbon leader. Soft mouths: don't horse them.", "Year-round. Best fall through spring."], lure: function (x) {
+      if (x.wt < 58) return LL("Suspending twitchbait", x.cl === "clear" ? "Silver/green" : "Chartreuse", "Cold trout sit still in deep holes and won't chase far.", "Twitch twice, pause 5 seconds. Most bites come on the pause.", "Paddle tail on a light jig head");
+      if (x.low && x.wt >= 65) return LL("Walking topwater", x.top, "Trout hunt bait on the surface at dawn and dusk.", "Walk it with steady rhythm. Wait for weight before setting.", "Soft jerkbait");
+      return LL("Shrimp imitation under a popping cork", x.ic, "A cork calls trout in from across the flat and keeps the bait in front of them.", "Pop hard, then wait 10–15 seconds. Repeat.", "Live shrimp"); } },
+    "Snook": { w: "salt", p: { light: 1, tide: 1 }, how: ["Mangrove shorelines, docks, bridges, passes and lighted seawalls at night. Mostly Central and South Florida.", "Moving tide, low light and night under dock and bridge lights.", "Live pilchards and shrimp, weedless paddle tails, soft jerkbaits, topwater.", "Medium-heavy rod, 20–30 lb braid, 30–40 lb fluorocarbon leader. Their gill plates cut line.", "Best spring through fall. Very sensitive to cold."], lure: function (x) {
+      if (x.wt < 65) return LL("Live shrimp, free-lined slowly", "Natural", "Cool water makes snook sluggish. A slow, natural bait gets eaten.", "Let it drift naturally along docks and mangroves with the tide.", "Slow-sinking soft jerkbait");
+      if (x.low) return LL("White paddle-tail swimbait", "White or glow", "At night snook ambush bait in the shadow line under lights.", "Cast up-current of the light and swim it slowly through the shadow edge.", "Live shrimp");
+      return LL("Weedless paddle tail", x.ic, "Snook ambush bait from mangroves and dock shade.", "Skip it into the shade and swim it out slowly along the roots or pilings.", "Live pilchard or shrimp"); } },
+    "Flounder": { w: "salt", p: { tide: 1 }, how: ["Sandy bottom next to structure: dock pilings, jetty rocks, drop-offs and creek mouths.", "Moving tide, especially the outgoing. They face into the current.", "Live mud minnows, finger mullet, Gulp shrimp or minnows, bucktail jigs.", "Medium spinning rod, 15 lb braid, 20 lb leader, Carolina rig or jig.", "Year-round. The fall run (October–December) is best."], lure: function (x) {
+      return LL("Bucktail jig tipped with a soft-plastic minnow", "White or chartreuse", "Flounder lie on the bottom and ambush anything that bounces past.", "Bounce it slowly along the bottom. When you feel a thump, wait 2–3 seconds before setting.", "Live mud minnow on a Carolina rig"); } },
+    "Sheepshead": { w: "salt", p: { tide: 1, day: 0.5 }, how: ["Dock and bridge pilings, jetty rocks, seawalls and oyster bars. Anywhere with barnacles.", "Moving tide, daytime. They're light biters, so watch the line.", "Fiddler crabs, fresh shrimp, sand fleas and barnacles. Rarely hit lures.", "Medium rod with a stiff tip, 20 lb leader, small strong hook (1/0), knocker rig.", "Best December–April during the spawning run."], lure: function (x) {
+      return LL("Fiddler crab or fresh shrimp on a knocker rig", "Natural", "Sheepshead crunch barnacles and crabs off pilings and almost never chase lures.", "Drop it tight to the piling. At the lightest tap, set the hook hard.", "Sheepshead jig tipped with shrimp"); } },
+    "Black drum": { w: "salt", p: { tide: 1 }, how: ["Deeper channels, bridges, docks and oyster bars. Shallow flats in clear water.", "Moving tide, day or night.", "Fresh shrimp, blue crab pieces and clams on the bottom.", "Medium rod, 20 lb leader, Carolina rig or knocker rig.", "Year-round. Big spawning fish February–April."], lure: function (x) {
+      return LL("Fresh shrimp on the bottom", "Natural", "Black drum feed by smell and crunch crabs and shrimp on the bottom.", "Cast near pilings or channel edges and let it sit. Wait for steady pressure.", "Blue crab pieces"); } },
+    "Pompano": { w: "salt", p: { tide: 1, day: 1 }, how: ["The first trough in the surf, passes and sandy flats near inlets.", "Daytime on the incoming tide in clean, clear water.", "Sand fleas, Fishbites, small pompano jigs in pink or yellow.", "Long surf rod, 15–20 lb line, double-drop pompano rig with small hooks.", "Spring (March–May) and fall (October–November) runs along the beaches."], lure: function (x) {
+      return LL("Pompano jig", "Pink or yellow", "Pompano dig sand fleas out of the trough, and a hopping jig kicks up sand like one.", "Bounce it along the bottom in short hops so it puffs sand.", "Sand fleas or Fishbites on a double-drop rig"); } },
+    "Spanish mackerel": { w: "salt", p: { day: 1, tide: 0.5 }, how: ["Piers, bridges, inlets, passes and along the beaches. Follow the diving birds.", "Daytime in clear water on moving tide.", "Gotcha plugs, silver spoons, small jigs and live bait.", "Medium spinning rod, 15 lb line, short wire or 40 lb leader (sharp teeth).", "April–October, when the water's warm."], lure: function (x) {
+      return LL("Gotcha plug", "White/red or chartreuse", "Spanish chase small fast baitfish, and speed triggers them.", "Cast, let it sink a few seconds, then reel fast while jerking the rod hard.", "Silver spoon on a short wire leader"); } },
+    "King mackerel": { w: "salt", p: { light: 1 }, how: ["Nearshore reefs, wrecks and pier ends. Big bait schools.", "Early morning on clean green water.", "Live blue runners, cigar minnows and menhaden on a wire stinger rig, or trolled spoons.", "Medium-heavy rod, 20–30 lb line, wire stinger rig with a treble.", "Spring (April–May) and fall (September–November) runs."], lure: function (x) {
+      return LL("Live bait on a wire stinger rig", "Natural", "Kings eat big baitfish and will cut through anything but wire.", "Slow-troll or free-line a live baitfish. Let them run before you tighten up.", "Trolled spoon or diving plug"); } },
+    "Bonita (little tunny)": { w: "salt", p: { day: 1 }, how: ["Nearshore and around passes and pier ends. Look for busting schools and birds.", "Daytime when bait is pushed to the surface.", "Small metal jigs, epoxy jigs and silver spoons.", "Medium spinning rod, 15–20 lb line, 30 lb fluorocarbon leader.", "Spring through fall nearshore."], lure: function (x) {
+      return LL("Small metal or epoxy jig", "Silver", "Bonita race through bait schools, and a fast, flashy jig matches the bait.", "Cast into the busting fish and reel as fast as you can.", "Silver spoon"); } },
+    "Tarpon": { w: "salt", p: { light: 1, tide: 1 }, how: ["Passes, bridges, beaches and river mouths. Rolling fish give them away.", "Dawn, dusk and night, on strong moving tide.", "Live crabs, pinfish and mullet. Large soft swimbaits.", "Heavy rod, 50–65 lb braid, 60–80 lb fluorocarbon leader, circle hook.", "May–September. April–July in Southwest Florida."], lure: function (x) {
+      return LL(x.low ? "Large soft swimbait" : "Live crab or pinfish on a circle hook", x.low ? "Dark or glow" : "Natural", "Tarpon roll and feed on the tide, especially in low light.", "Drift it with the current toward rolling fish. Don't jerk: let the circle hook set as the line tightens.", "Live mullet"); } },
+    "Mangrove snapper": { w: "salt", p: { tide: 1, light: 0.5 }, how: ["Docks, bridges, mangrove roots, jetties and rock piles.", "Moving tide, dawn and dusk. They spook easily in clear water.", "Live shrimp, small pinfish, cut bait and squid.", "Light-medium rod, 15–20 lb fluorocarbon leader (they're line shy), small hook.", "Year-round inshore. Bigger ones in summer."], lure: function (x) {
+      return LL("Live shrimp on a light fluorocarbon leader", "Natural", "Mangrove snapper are line shy and pick at baits. A light leader and natural bait gets bit.", "Drop it close to structure with as little weight as possible.", "Cut pinfish or squid"); } },
+    "Jack crevalle": { w: "salt", p: { tide: 1, day: 0.5 }, how: ["Passes, bridges, docks and open bay water. They roam in schools.", "Moving tide, any time of day. Watch for crashing bait.", "Topwater poppers, fast spoons, jigs and live bait.", "Medium-heavy rod, 20–30 lb line. They fight hard.", "Year-round. Big schools in fall."], lure: function (x) {
+      return LL("Topwater popper", "Chrome or bone", "Jacks attack anything fast and noisy, especially near crashing bait.", "Cast into the school and pop it fast. Don't slow down.", "Silver spoon, fast retrieve"); } },
+    "Ladyfish": { w: "salt", p: { tide: 1, light: 0.5 }, how: ["Open bay water, passes, channel edges and under bridge and dock lights at night.", "Moving tide. At night under lights.", "Small silver spoons, white jigs, Gotcha plugs and shrimp under a popping cork.", "Light spinning rod, 10–15 lb line, 20–30 lb leader.", "Warm months, often in big schools."], lure: function (x) {
+      return LL("Small white jig or silver spoon", "White or silver", "Ladyfish chase small baitfish and hit fast, flashy baits.", "Fast retrieve with twitches. Drop your rod tip when they jump.", "Shrimp under a popping cork"); } },
+    "Hardhead catfish": { w: "salt", p: { tide: 0.5 }, how: ["Almost anywhere in the bay with a sandy or muddy bottom.", "Any tide, any time. They're rarely the target.", "Shrimp and cut bait on the bottom.", "Any bottom rig. Grab them carefully: the fin spines are venomous.", "Year-round, mostly warm months."], lure: function (x) {
+      return LL("Shrimp or cut bait on the bottom", "Natural", "Hardheads find any bait on the bottom by smell.", "Let it sit. Handle carefully, and keep clear of the fin spines.", "Squid"); } },
+    "Gafftopsail catfish": { w: "salt", p: { tide: 1 }, how: ["Passes, channels and surf. They feed higher in the water than hardheads.", "Moving tide, after rain when the water's dirty.", "Cut bait, shrimp and small live fish. They'll also hit jigs.", "Medium rod, 20 lb leader. Very slimy, and the spines are venomous.", "Warm months."], lure: function (x) {
+      return LL("Cut bait on a bottom rig", "Natural", "Gafftops feed on moving water and find cut bait fast.", "Fish it in current near channel edges.", "Live pinfish"); } },
+    "Whiting": { w: "salt", p: { tide: 1, day: 0.5 }, how: ["The first trough in the surf, close to the beach.", "Incoming tide, daytime.", "Shrimp, Fishbites and sand fleas.", "Surf or medium rod, double-drop rig with small hooks (size 4–6).", "Year-round. Best fall through spring."], lure: function (x) {
+      return LL("Fishbites or shrimp on a double-drop rig", "Pink or natural", "Whiting cruise the trough just off the beach eating small crustaceans.", "Cast to the first trough, keep the line tight, and watch for taps.", "Sand fleas"); } },
+    "White trout": { w: "salt", p: { tide: 1 }, how: ["Deeper channels, bridges and bay holes. Often in schools.", "Moving tide, day or night.", "Shrimp-tipped jigs, tandem rigs, small soft plastics and cut squid.", "Light-medium rod, 10–15 lb line.", "Best fall through spring."], lure: function (x) {
+      return LL("Shrimp-tipped 1/4 oz jig", "White or chartreuse", "White trout school in deeper water and feed near the bottom.", "Let it sink to the bottom, then hop it slowly back.", "Tandem jig rig"); } },
+    "Croaker": { w: "salt", p: { tide: 1 }, how: ["Bay channels, docks, piers and muddy or sandy bottom.", "Moving tide. Evening and night are good.", "Small pieces of shrimp, squid and bloodworms.", "Light rod, bottom rig with small hooks (size 4–6).", "Spring through fall."], lure: function (x) {
+      return LL("Small pieces of shrimp on a bottom rig", "Natural", "Croaker feed on small crustaceans along the bottom.", "Fish it on the bottom and set the hook on a sharp tug.", "Squid strips"); } },
+    "Bluefish": { w: "salt", p: { tide: 1, light: 0.5 }, how: ["Passes, piers, beaches and open bay. They travel in fast-moving schools.", "Moving tide, early morning and evening.", "Silver spoons, Gotcha plugs, topwater poppers and cut bait.", "Medium rod, 15–20 lb line, short wire leader (very sharp teeth).", "Cooler months in the Panhandle, fall through spring."], lure: function (x) {
+      return LL("Silver spoon on a short wire leader", "Silver", "Bluefish slash at fast, shiny baits, and their teeth cut through mono.", "Cast into feeding fish and reel fast.", "Gotcha plug"); } },
+    "Cobia": { w: "salt", p: { day: 1 }, how: ["Cruising the beaches in spring, around buoys, markers, wrecks and under rays and turtles.", "Sunny days when you can sight-cast to them.", "Live eels, crabs and pinfish. Big bucktail jigs and eel-shaped soft plastics.", "Heavy spinning rod, 30–50 lb braid, 50–60 lb leader.", "March–May spring run along the Panhandle. Year-round farther south."], lure: function (x) {
+      return LL("Large bucktail jig (2–3 oz)", "White or chartreuse", "Cobia cruise near the surface and hit a big jig dropped in front of them.", "Sight-cast ahead of the fish and let it sink in front of its nose, then hop it.", "Live eel or pinfish"); } }
+  };
+  var TARGET_FRESH = Object.keys(TARGETS).filter(function (k) { return TARGETS[k].w === "fresh"; });
+  if (!TARGETS[state.target]) state.target = state.species === "inshore" ? "Any inshore" : "Any bass";
+  state.species = TARGETS[state.target].w === "fresh" ? "bass" : "inshore";
+  function targetName() { return TARGETS[state.target].any ? null : state.target; }
+  function speciesMatch(c) {
+    var tn = targetName();
+    if (tn) return c.species === tn;
+    return (INSHORE.indexOf(c.species) >= 0) === (state.species === "inshore");
+  }
+  function speciesLure() {
+    var tn = targetName(), T = tn && TARGETS[tn]; if (!T || !T.lure || !state.pro) return null;
+    var cl = state.clarity;
+    var x = { wt: waterTemp().f, low: lowLightNow(), cl: cl, month: new Date().getMonth() + 1,
+      soft: { clear: "Green pumpkin", stained: "Junebug", muddy: "Black/blue" }[cl],
+      hard: { clear: "Ghost shad", stained: "Chartreuse shad", muddy: "Black/chartreuse" }[cl],
+      top: { clear: "Bone", stained: "Bone/chartreuse", muddy: "Black" }[cl],
+      ic: { clear: "Natural shrimp or glow", stained: "Root beer/chartreuse", muddy: "Dark purple or gold" }[cl] };
+    var L = T.lure(x); if (L) L.fixed = true;
+    return L;
+  }
+  function speciesBest() {
+    var tn = targetName(), T = TARGETS[state.target], p = T.p || {};
+    var d = dayRows(0), a = state.astro, ev = state.tide && state.tide.events;
+    var rows = d.rows.map(function (r) {
+      var bonus = 0;
+      if (p.light && lowLightAt(r.t, a) && !(a && (r.t < a.sunrise - 90 * 60e3 || r.t > a.sunset + 90 * 60e3))) bonus += 1.5 * p.light;
+      if (p.tide && state.species === "inshore" && ev) { var tt = tideAt(ev, r.t); if (tt && Math.sin(Math.PI * tt.f) >= 0.5) bonus += 1.5 * p.tide; }
+      if (p.day && r.h >= 10 && r.h <= 16) bonus += 1 * p.day;
+      return { h: r.h, raw: r.raw + bonus };
+    });
+    var nowH = new Date().getHours();
+    var b = bestWindow(rows, nowH) || bestWindow(rows, 5);
+    if (!b) return null;
+    var w = mkWin(d.day, b);
+    return { start: w.start, end: w.end, later: b.h < nowH };
+  }
+  function renderHow() {
+    var T = TARGETS[state.target], box = $("howBox"); if (!box || !T) return;
+    var tn = targetName(), label = tn ? (/^Spanish/.test(tn) ? tn : tn.toLowerCase()) : (state.species === "bass" ? "bass" : "inshore fish");
+    $("howH").textContent = tn ? "How to catch " + tn : (state.species === "bass" ? "How to catch bass" : "How to catch inshore fish");
+    var r = currentRegs();
+    var rows = [["Where they hold", T.how[0]], ["Best time and tide", T.how[1]], ["Top baits and lures", T.how[2]], ["Rig and tackle", T.how[3]], ["Season in Florida", T.how[4]]];
+    var best = "";
+    if (state.pro) {
+      var b = state.weather ? speciesBest() : null;
+      if (b) best = '<div class="how-best">' + (b.later
+        ? "<b>Today's best time for " + esc(label) + "</b> was " + esc(fmtShort(b.start) + "–" + fmtShort(b.end)) + ". Check tomorrow in the 3-day outlook."
+        : "<b>Best time today for " + esc(label) + ":</b> " + esc(fmtShort(b.start) + "–" + fmtShort(b.end))) + "</div>";
+    } else best = lockedRow("Best time today for " + esc(label));
+    box.innerHTML = best + '<dl class="kv how">' + rows.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl>" +
+      '<div class="sub">Size and bag limits change. Check ' + (r ? '<a href="' + r[2] + '" target="_blank" rel="noopener">' + esc(r[1]) + " regulations</a>" : "your state's fishing regulations") + " before you keep a fish.</div>";
+  }
+
   // Where you fish from (bank, dock, pier...) and what's around you (grass, wood, mangroves...)
   // can swap the pick and each adds a short tip.
   var WHERE_NAMES = { bank: "the bank", dock: "a dock", pier: "a pier or bridge", surf: "the surf", boat: "a boat or kayak", grass: "grass beds" };
@@ -1129,7 +1268,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       frog: cl === "clear" ? "Natural green" : cl === "stained" ? "White" : "Black" };
     var f = wh !== "any" ? fromSwap(wh, x) : { tip: null, L: null }, c = cv !== "any" ? coverSwap(cv, x) : { tip: null, L: null };
     // Pier and surf decide the lure; otherwise the cover is the more specific clue.
-    var pick = (wh === "pier" || wh === "surf") ? (f.L || c.L) : (c.L || f.L);
+    var pick = L.fixed ? null : (wh === "pier" || wh === "surf") ? (f.L || c.L) : (c.L || f.L);
     var M = Object.assign({}, pick || L);
     M.tips = [];
     if (f.tip) M.tips.push("<b>From " + esc(WHERE_NAMES[wh]) + ":</b> " + esc(f.tip));
@@ -1137,7 +1276,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     M.where = wh; M.cover = cv;
     return M;
   }
-  function pickLure() { return spotLure(baseLure()); }
+  function pickLure() { return spotLure(speciesLure() || baseLure()); }
   function baseLure() {
     var w = state.weather || {}, wt = waterTemp().f, cl = state.clarity;
     var trend = w.trendIn || 0, wind = w.windMph || 0;
@@ -1286,7 +1425,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     $("dialArc").setAttribute("stroke-dasharray", (b.score / 10 * 264).toFixed(1) + " 264");
     $("verdict").textContent = b.label;
     var best = a && a.windows.filter(function (x) { return x.kind === "Major" && x.end > new Date(); })[0];
-    $("verdictSub").textContent = state.species === "bass" ? "Largemouth bass" : "Inshore saltwater";
+    $("verdictSub").textContent = targetName() || (state.species === "bass" ? "Bass" : "Inshore saltwater");
     $("biteTime").textContent = "As of " + fmtTime(new Date());
     $("factorsBox").innerHTML = state.pro
       ? '<ul class="factors">' + b.factors.map(function (x) { return '<li class="' + (x.v > 0 ? "up" : x.v < 0 ? "down" : "") + '">' + esc(x.text) + "</li>"; }).join("") + "</ul>" +
@@ -1317,9 +1456,10 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     });
     $("lureProBox").innerHTML = state.pro
       ? '<dl class="kv"><dt>Retrieve</dt><dd>' + esc(L.retrieve) + "</dd><dt>Backup</dt><dd>" + esc(L.backup) + "</dd></dl>" + personalLine()
-      : lockedRow("Retrieve tips and backup lure") + (learnedPick() ? lockedRow("Your log has a lure pick for conditions like today") : "");
+      : (targetName() ? lockedRow("Lure pick made for " + esc(/^Spanish/.test(targetName()) ? targetName() : targetName().toLowerCase())) : "") + lockedRow("Retrieve tips and backup lure") + (learnedPick() ? lockedRow("Your log has a lure pick for conditions like today") : "");
 
     renderRegs();
+    renderHow();
     renderBuy();
     $("timelineBox").innerHTML = timelineHtml();
     renderOutlook();
@@ -1684,7 +1824,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
   function learnedPick() {
     var cs = state.catches || []; if (cs.length < 3) return null;
     var bassMode = state.species === "bass", wt = waterTemp().f, w = state.weather || {}, tr = trendLabel(w.trendIn), sk = w.skyKind, cl = state.clarity;
-    var close = cs.filter(function (c) { return c.lure && (INSHORE.indexOf(c.species) >= 0) !== bassMode; }).filter(function (c) {
+    var close = cs.filter(function (c) { return c.lure && speciesMatch(c); }).filter(function (c) {
       var k = c.cond || {}, sc = 0;
       if (k.waterF != null && Math.abs(k.waterF - wt) <= 6) sc += 2;
       if (tr && k.trend === tr) sc += 1.5;
@@ -2083,7 +2223,7 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
     } else {
       var L = pickLure();
       pendingPhoto = null; pendingCond = snapshot();
-      $("fSpecies").value = state.species === "bass" ? "Largemouth bass" : "Redfish";
+      $("fSpecies").value = targetName() || (state.species === "bass" ? "Largemouth bass" : "Redfish");
       $("fTime").value = localInput(new Date());
       $("fLure").value = L.name; $("fColor").value = L.color;
       spot = state.spot || DEFAULT_SPOT;
@@ -2220,7 +2360,13 @@ dialog.sheet::backdrop { background: rgba(5, 20, 38, .6); }
       });
     });
   }
-  wireSeg("speciesSeg", "species");
+  $("targetSel").value = state.target;
+  $("targetSel").addEventListener("change", function (e) {
+    if (!TARGETS[e.target.value]) return;
+    state.target = e.target.value; store("bw.target", state.target);
+    state.species = TARGETS[state.target].w === "fresh" ? "bass" : "inshore"; store("bw.species", state.species);
+    if (state.weather) render(); else renderHow();
+  });
   wireSeg("claritySeg", "clarity");
   wireSeg("whereSeg", "where");
   wireSeg("coverSeg", "cover");
